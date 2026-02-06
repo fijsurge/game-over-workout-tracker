@@ -39,7 +39,6 @@
     </div>
 
     <script type="text/babel">
-        // SAFETY WRAPPER: Wait for Recharts to be ready in the global window
         const initApp = () => {
             if (typeof window.Recharts === 'undefined' || typeof window.React === 'undefined') {
                 setTimeout(initApp, 100);
@@ -195,10 +194,26 @@
                                                 const logKey = `${phase}-${day}-${ex.name}-s${s}`;
                                                 const data = logs[logKey] || { w: '', r: '' };
                                                 return (
-                                                    <div key={s} className="flex gap-3">
+                                                    <div key={s} className="flex gap-2 items-center">
                                                         <div className="w-8 h-8 flex items-center justify-center bg-slate-900 rounded-lg text-[10px] font-black text-white shrink-0">S{s}</div>
-                                                        <input type="number" inputMode="decimal" placeholder="Lbs" value={data.w} onChange={(e) => setLogs({...logs, [logKey]: {...data, w: e.target.value}})} className="flex-1 p-3 bg-slate-50 rounded-xl text-center font-bold outline-none focus:ring-2 focus:ring-red-500" />
-                                                        <input type="number" inputMode="numeric" placeholder="Reps" value={data.r} onChange={(e) => setLogs({...logs, [logKey]: {...data, r: e.target.value}})} className="w-16 p-3 bg-slate-50 rounded-xl text-center font-black outline-none focus:ring-2 focus:ring-red-500" />
+                                                        <div className="flex-1 flex gap-2">
+                                                            <input 
+                                                                type="number" 
+                                                                inputMode="decimal" 
+                                                                placeholder="Lbs" 
+                                                                value={data.w} 
+                                                                onChange={(e) => setLogs({...logs, [logKey]: {...data, w: e.target.value}})} 
+                                                                className="w-full p-3 bg-slate-50 rounded-xl text-center font-bold outline-none focus:ring-2 focus:ring-red-500 transition-all placeholder:text-slate-300" 
+                                                            />
+                                                            <input 
+                                                                type="number" 
+                                                                inputMode="numeric" 
+                                                                placeholder="Reps" 
+                                                                value={data.r} 
+                                                                onChange={(e) => setLogs({...logs, [logKey]: {...data, r: e.target.value}})} 
+                                                                className="w-full p-3 bg-slate-50 rounded-xl text-center font-black outline-none focus:ring-2 focus:ring-red-500 transition-all placeholder:text-slate-300" 
+                                                            />
+                                                        </div>
                                                     </div>
                                                 );
                                             })}
@@ -248,7 +263,6 @@
             root.render(<App />);
         };
 
-        // Kick off the safety check
         initApp();
     </script>
 </body>
