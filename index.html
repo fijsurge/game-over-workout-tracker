@@ -49,7 +49,7 @@
 
         const renderApp = () => {
             const { useState, useEffect, useMemo } = React;
-            const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } = Recharts;
+            const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ComposedChart, Scatter } = Recharts;
             
             const Icons = {
                 Dumbbell: () => (
@@ -73,6 +73,50 @@
             };
 
             const APP_ID = 'game-over-tracker-v5';
+
+            // Migrate data from older app versions (v1-v4) into current version
+            (function migrateOldData() {
+                const currentLogs = localStorage.getItem(`${APP_ID}_logs`);
+                const currentHistory = localStorage.getItem(`${APP_ID}_history`);
+                let mergedLogs = currentLogs ? JSON.parse(currentLogs) : {};
+                let mergedHistory = currentHistory ? JSON.parse(currentHistory) : [];
+                let migrated = false;
+
+                for (let v = 1; v <= 4; v++) {
+                    const oldId = `game-over-tracker-v${v}`;
+                    const oldLogs = localStorage.getItem(`${oldId}_logs`);
+                    const oldHistory = localStorage.getItem(`${oldId}_history`);
+
+                    if (oldLogs) {
+                        const parsed = JSON.parse(oldLogs);
+                        Object.keys(parsed).forEach(key => {
+                            if (!mergedLogs[key]) mergedLogs[key] = parsed[key];
+                        });
+                        localStorage.removeItem(`${oldId}_logs`);
+                        migrated = true;
+                    }
+
+                    if (oldHistory) {
+                        const parsed = JSON.parse(oldHistory);
+                        const existingKeys = new Set(mergedHistory.map(h => `${h.key}_${h.date}`));
+                        parsed.forEach(entry => {
+                            const dedupKey = `${entry.key}_${entry.date}`;
+                            if (!existingKeys.has(dedupKey)) {
+                                mergedHistory.push(entry);
+                                existingKeys.add(dedupKey);
+                            }
+                        });
+                        localStorage.removeItem(`${oldId}_history`);
+                        migrated = true;
+                    }
+                }
+
+                if (migrated) {
+                    localStorage.setItem(`${APP_ID}_logs`, JSON.stringify(mergedLogs));
+                    localStorage.setItem(`${APP_ID}_history`, JSON.stringify(mergedHistory));
+                    console.log('[Game Over] Migrated data from older versions');
+                }
+            })();
 
             const programData = {
                 1: { title: "Conditioning", targetReps: "12-15", workouts: {
@@ -102,7 +146,6 @@
                 const [view, setView] = useState('workout');
                 const [phase, setPhase] = useState(1);
                 const [day, setDay] = useState('Monday');
-                const [selectedStatEx, setSelectedStatEx] = useState('');
                 const [logs, setLogs] = useState({});
                 const [history, setHistory] = useState([]);
                 const [toast, setToast] = useState(null);
@@ -112,8 +155,11 @@
                     const savedHistory = localStorage.getItem(`${APP_ID}_history`);
                     if (savedLogs) setLogs(JSON.parse(savedLogs));
                     if (savedHistory) setHistory(JSON.parse(savedHistory));
-                    setSelectedStatEx(programData[1].workouts['Monday'][0].name);
                 }, []);
+
+                useEffect(() => {
+                    localStorage.setItem(`${APP_ID}_logs`, JSON.stringify(logs));
+                }, [logs]);
 
                 const saveSession = () => {
                     const timestamp = new Date().toISOString();
@@ -133,25 +179,35 @@
                 const clearData = () => {
                     if (confirm("Permanently delete all workout history?")) {
                         setLogs({}); setHistory([]);
-                        localStorage.clear();
+                        localStorage.removeItem(`${APP_ID}_logs`);
+                        localStorage.removeItem(`${APP_ID}_history`);
                         window.location.reload();
                     }
                 };
 
-                const analyticsData = useMemo(() => {
-                    if (!selectedStatEx) return [];
-                    const filtered = history.filter(h => h.key.includes(selectedStatEx));
-                    const byDate = filtered.reduce((acc, curr) => {
-                        if (!acc[curr.date]) acc[curr.date] = [];
-                        acc[curr.date].push(parseFloat(curr.w));
-                        return acc;
-                    }, {});
-                    return Object.entries(byDate).map(([date, weights]) => ({
-                        date: date.slice(5),
-                        peak: Math.max(...weights),
-                        average: Math.round((weights.reduce((a, b) => a + b, 0) / weights.length) * 10) / 10
-                    })).sort((a, b) => new Date(a.date) - new Date(b.date));
-                }, [history, selectedStatEx]);
+                const allExerciseStats = useMemo(() => {
+                    const exercises = programData[phase].workouts[day];
+                    return exercises.map(ex => {
+                        const filtered = history.filter(h => h.key.includes(ex.name));
+                        if (filtered.length === 0) return { name: ex.name, avgData: [], setData: [] };
+                        const setData = filtered.map(h => ({
+                            date: h.date.slice(5),
+                            weight: parseFloat(h.w),
+                            reps: parseFloat(h.r)
+                        })).sort((a, b) => a.date.localeCompare(b.date));
+                        const byDate = {};
+                        filtered.forEach(h => {
+                            if (!byDate[h.date]) byDate[h.date] = [];
+                            byDate[h.date].push({ w: parseFloat(h.w), r: parseFloat(h.r) });
+                        });
+                        const avgData = Object.entries(byDate).map(([date, entries]) => ({
+                            date: date.slice(5),
+                            avgWeight: Math.round((entries.reduce((s, e) => s + e.w, 0) / entries.length) * 10) / 10,
+                            avgReps: Math.round((entries.reduce((s, e) => s + e.r, 0) / entries.length) * 10) / 10
+                        })).sort((a, b) => a.date.localeCompare(b.date));
+                        return { name: ex.name, avgData, setData };
+                    });
+                }, [history, phase, day]);
 
                 return (
                     <div className="min-h-screen pb-24 font-sans max-w-md mx-auto relative bg-slate-50">
@@ -174,7 +230,7 @@
                         {view === 'workout' ? (
                             <div className="p-4 space-y-4">
                                 <div className="relative">
-                                    <select value={day} onChange={(e) => {setDay(e.target.value); setSelectedStatEx(programData[phase].workouts[e.target.value][0].name)}} className="w-full p-4 bg-white rounded-2xl border-none shadow-sm text-lg font-bold appearance-none">
+                                    <select value={day} onChange={(e) => setDay(e.target.value)} className="w-full p-4 bg-white rounded-2xl border-none shadow-sm text-lg font-bold appearance-none">
                                         {Object.keys(programData[phase].workouts).map(d => <option key={d} value={d}>{d}</option>)}
                                     </select>
                                     <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400"><Icons.Chevron /></div>
@@ -223,29 +279,40 @@
                             </div>
                         ) : (
                             <div className="p-4 space-y-4">
-                                <div className="bg-white p-4 rounded-3xl shadow-sm">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Selected Exercise</p>
-                                    <select value={selectedStatEx} onChange={(e) => setSelectedStatEx(e.target.value)} className="w-full bg-slate-50 p-3 rounded-xl font-bold outline-none">
-                                        {programData[phase].workouts[day].map(ex => <option key={ex.name} value={ex.name}>{ex.name}</option>)}
+                                <div className="relative">
+                                    <select value={day} onChange={(e) => setDay(e.target.value)} className="w-full p-4 bg-white rounded-2xl border-none shadow-sm text-lg font-bold appearance-none">
+                                        {Object.keys(programData[phase].workouts).map(d => <option key={d} value={d}>{d}</option>)}
                                     </select>
+                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400"><Icons.Chevron /></div>
                                 </div>
-                                <div className="bg-white p-6 rounded-3xl shadow-sm h-80">
-                                    {analyticsData.length > 0 ? (
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <LineChart data={analyticsData}>
-                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                                <XAxis dataKey="date" fontSize={10} tickLine={false} axisLine={false} />
-                                                <YAxis fontSize={10} tickLine={false} axisLine={false} />
-                                                <Tooltip contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
-                                                <Legend verticalAlign="top" height={36} wrapperStyle={{fontSize: '10px', fontWeight: 'bold'}} />
-                                                <Line type="monotone" name="Peak Weight" dataKey="peak" stroke="#ef4444" strokeWidth={4} dot={{r: 4, fill: '#ef4444'}} />
-                                                <Line type="monotone" name="Average" dataKey="average" stroke="#3b82f6" strokeWidth={2} strokeDasharray="5 5" />
-                                            </LineChart>
-                                        </ResponsiveContainer>
-                                    ) : (
-                                        <div className="flex items-center justify-center h-full text-center text-slate-400 font-bold uppercase text-xs">No logs found for this move.</div>
-                                    )}
-                                </div>
+
+                                {allExerciseStats.map(exStat => (
+                                    <div key={exStat.name} className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
+                                        <h3 className="text-sm font-black text-slate-800 uppercase flex items-center gap-2 mb-4">
+                                            <Icons.Dumbbell /> {exStat.name}
+                                        </h3>
+                                        {exStat.avgData.length > 0 ? (
+                                            <div className="h-64">
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <ComposedChart data={exStat.avgData}>
+                                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                                        <XAxis dataKey="date" fontSize={10} tickLine={false} axisLine={false} />
+                                                        <YAxis yAxisId="weight" fontSize={10} tickLine={false} axisLine={false} label={{ value: 'Lbs', angle: -90, position: 'insideLeft', style: { fontSize: 10, fill: '#94a3b8' } }} />
+                                                        <YAxis yAxisId="reps" orientation="right" fontSize={10} tickLine={false} axisLine={false} label={{ value: 'Reps', angle: 90, position: 'insideRight', style: { fontSize: 10, fill: '#94a3b8' } }} />
+                                                        <Tooltip contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
+                                                        <Legend verticalAlign="top" height={36} wrapperStyle={{fontSize: '10px', fontWeight: 'bold'}} />
+                                                        <Line yAxisId="weight" type="monotone" name="Avg Weight" dataKey="avgWeight" stroke="#ef4444" strokeWidth={2} dot={false} />
+                                                        <Line yAxisId="reps" type="monotone" name="Avg Reps" dataKey="avgReps" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                                                        <Scatter yAxisId="weight" name="Weight" data={exStat.setData} dataKey="weight" fill="#ef4444" opacity={0.5} />
+                                                        <Scatter yAxisId="reps" name="Reps" data={exStat.setData} dataKey="reps" fill="#3b82f6" opacity={0.5} />
+                                                    </ComposedChart>
+                                                </ResponsiveContainer>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center justify-center h-32 text-center text-slate-400 font-bold uppercase text-xs">No data yet</div>
+                                        )}
+                                    </div>
+                                ))}
                             </div>
                         )}
 
