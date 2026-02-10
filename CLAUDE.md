@@ -31,3 +31,20 @@ Single-component React app rendered inline via Babel. All code is in one `<scrip
 **Program structure:** 3 phases (Conditioning/Growth/Strength) with different target rep ranges and set counts. 5-day weekly split (Mon/Tue/Wed/Fri/Sat). Phase 3 has custom exercises (Deadlifts, Weighted Dips). The program data is defined as a `PROGRAMS` object at the top of the script.
 
 **UI components:** All inline — custom SVG icon components, toast notification system with bounce animation, phase selector tabs, day dropdown, exercise cards with per-set inputs.
+
+## Android APK Build (Capacitor)
+
+The app is also packaged as an Android APK via Capacitor. The `www/` directory contains a copy of the app with locally-bundled CDN dependencies (no network needed at runtime).
+
+**Project structure:**
+- `www/` — web assets served by the Android WebView (copy of `index.html` with local `./lib/` script paths)
+- `www/lib/` — locally downloaded React, ReactDOM, PropTypes, Recharts, Babel, Tailwind CSS
+- `android/` — generated Capacitor Android project
+
+**Commands:**
+- `npx cap copy` — sync `www/` assets into the Android project
+- `npx cap open android` — open in Android Studio
+- `cd android && ./gradlew assembleDebug` — build debug APK (output: `android/app/build/outputs/apk/debug/app-debug.apk`)
+- `adb install android/app/build/outputs/apk/debug/app-debug.apk` — install on device/emulator
+
+**After editing `index.html`:** copy changes to `www/index.html` (updating CDN paths to `./lib/` local paths), then run `npx cap copy` before rebuilding.
