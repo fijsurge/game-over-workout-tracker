@@ -23,3 +23,14 @@ Set counts and exercises have been manually adjusted to match user preferences.
 Phase 3 includes specific exercises like Deadlifts and Weighted Dips.
 
 Progress visualization focuses on weight progression rather than just volume.
+
+## Test Data
+
+To generate sample workout data for testing the interface and charts:
+
+1. Open `index.html` in a browser
+2. Open the developer console (F12)
+3. Paste the contents of `test-data.js` and press Enter
+4. Refresh the page
+
+This generates 8 weeks of realistic workout history across all 3 phases with progressive overload, fatigue drop-off, and natural set-to-set variance. The most recent session is pre-loaded as current log inputs.
