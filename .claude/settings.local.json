@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(curl:*)",
+      "Bash(npm init:*)",
+      "Bash(export PATH=\"$PATH:/c/Program Files/nodejs:/c/Users/fijis/AppData/Roaming/npm\")",
+      "Bash(npm:*)",
+      "Bash(cmd.exe /c \"node --version\")",
+      "Bash(cmd.exe /c \"npm --version\")",
+      "Bash(powershell.exe -Command \"node --version; npm --version\":*)",
+      "Bash(powershell.exe:*)",
+      "Bash(export PATH=\"$PATH:/c/Program Files/nodejs\")",
+      "Bash(node --version:*)",
+      "Bash(npx cap init:*)",
+      "Bash(npx cap:*)",
+      "Bash(ls:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd Capacitor Android packaging with locally-bundled dependencies\n\nPackage the PWA as an Android APK via Capacitor. All CDN dependencies\n\\(React, ReactDOM, PropTypes, Recharts, Babel, Tailwind CSS\\) are\ndownloaded into www/lib/ so the app works offline in the WebView.\nAlso fixes the distorted Save icon SVG path in the www/ copy.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd data migration, logs persistence, and redesigned stats page\n\nMigrate localStorage data from older app versions \\(v1-v4\\) into v5 on\nload with deduplication. Auto-save in-progress logs so workout data\nsurvives browser close. Fix clearData\\(\\) to only remove app-specific\nkeys instead of wiping all localStorage. Replace broken single-exercise\nstats view with per-exercise ComposedCharts showing dual-axis weight/reps\naverages and individual set scatter points.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(gh auth:*)",
+      "Bash(./gradlew assembleDebug:*)",
+      "Bash(export JAVA_HOME=\"/c/Program Files/Android/Android Studio/jbr\")",
+      "Bash(git commit:*)"
+    ]
+  }
+}
