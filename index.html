@@ -89,7 +89,7 @@
             };
 
             const APP_ID = 'game-over-tracker-v5';
-            const APP_VERSION = '3.0.0';
+            const APP_VERSION = '3.1.0';
 
             // Migrate data from older app versions (v1-v4) into current version
             (function migrateOldData() {
@@ -178,7 +178,9 @@
                 useEffect(() => {
                     const savedLogs = localStorage.getItem(`${APP_ID}_logs`);
                     const savedHistory = localStorage.getItem(`${APP_ID}_history`);
-                    if (savedLogs) setLogs(JSON.parse(savedLogs));
+                    const hasSaved = localStorage.getItem(`${APP_ID}_saved`);
+                    if (savedLogs && !hasSaved) setLogs(JSON.parse(savedLogs));
+                    if (hasSaved) localStorage.removeItem(`${APP_ID}_saved`);
                     if (savedHistory) setHistory(JSON.parse(savedHistory));
                 }, []);
 
@@ -197,6 +199,7 @@
                     const newHistory = [...history, ...sessionEntries];
                     setHistory(newHistory);
                     localStorage.setItem(`${APP_ID}_history`, JSON.stringify(newHistory));
+                    localStorage.setItem(`${APP_ID}_saved`, 'true');
                     setToast("PROGRESS SAVED");
                     setTimeout(() => setToast(null), 2000);
                 };
