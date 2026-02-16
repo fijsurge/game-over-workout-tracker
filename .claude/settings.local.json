@@ -22,7 +22,10 @@
       "Bash(gh auth:*)",
       "Bash(./gradlew assembleDebug:*)",
       "Bash(export JAVA_HOME=\"/c/Program Files/Android/Android Studio/jbr\")",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(du:*)",
+      "Bash(git rm:*)",
+      "Bash(npx @capacitor/cli copy:*)"
     ]
   }
 }
