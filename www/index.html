@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Game Over Tracker</title>
-
+    
     <!-- Modern PWA Meta Tags -->
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -22,15 +22,16 @@
     <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png">
     <link rel="apple-touch-icon" sizes="512x512" href="/icon-512.png">
 
-    <!-- Local Dependencies -->
-    <script src="./lib/tailwindcss.js"></script>
+    <!-- Tailwind CSS (Development CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
     <script>tailwind.config = { darkMode: 'class' }</script>
-
-    <script src="./lib/react.production.min.js"></script>
-    <script src="./lib/react-dom.production.min.js"></script>
-    <script src="./lib/prop-types.min.js"></script>
-    <script src="./lib/Recharts.js"></script>
-    <script src="./lib/babel.min.js"></script>
+    
+    <!-- Stable Production CDNs -->
+    <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+    <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <style>
         body { -webkit-tap-highlight-color: transparent; background-color: #f8fafc; }
@@ -62,7 +63,7 @@
         const renderApp = () => {
             const { useState, useEffect, useMemo } = React;
             const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ComposedChart, Scatter } = Recharts;
-
+            
             const Icons = {
                 Dumbbell: () => (
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6.5 6.5 11 11"/><path d="m10 10 5.5 5.5"/><path d="m3 7 4 4"/><path d="m9 3 4 4"/><path d="m17 13 4 4"/><path d="m13 17 4 4"/></svg>
@@ -146,7 +147,7 @@
                     "Monday": [{ name: "Incline Barbell Press", sets: 6 }, { name: "Flat Barbell Press", sets: 6 }, { name: "Pec Deck", sets: 4 }, { name: "Push Ups", sets: 3 }, { name: "V-ups", sets: 4 }, { name: "Leg Raises", sets: 4 }],
                     "Tuesday": [{ name: "Squats", sets: 6 }, { name: "Stiff Leg Deadlift", sets: 6 }, { name: "Leg Curl", sets: 4 }, { name: "Leg Press", sets: 6 }, { name: "Leg Extension", sets: 4 }, { name: "Standing Calf Raise", sets: 4 }, { name: "Seated Calf Raise", sets: 4 }],
                     "Wednesday": [{ name: "High Row Wide Grip", sets: 6 }, { name: "Close Grip Low Row", sets: 6 }, { name: "Wide Grip Pull Downs", sets: 6 }, { name: "Dumbbell Pullovers", sets: 4 }, { name: "Barbell Shrugs", sets: 6 }, { name: "Hyperextensions", sets: 4 }],
-                    "Friday": [{ name: "Dumbbell Curls", sets: 6 }, { name: "Preacher Curls", sets: 6 }, { name: "Concentration Curls", sets: 3 }, { name: "Close Grip Press", sets: 6 }, { name: "V-Bar Press Down", sets: 6 }, { name: "Single Arm Over Head Ext", sets: 3 }],
+                    "Friday": [{ name: "Dumbbell Curls", sets: 6 }, { name: "Preacher Curls", sets: 6 }, { name: "Concentration Curls", sets: 3 }, { name: "Close Grip Press", sets: 6 }, { name: "V-Bar Press Down", sets: 6 }, { name: "Single Arm Over Head Ext", sets: 3 }, { name: "Toe Touches", sets: 4 }, { name: "Roman Chair Knee Ups", sets: 4 }],
                     "Saturday": [{ name: "Dumbbell Military Press", sets: 6 }, { name: "Front DB Raise", sets: 6 }, { name: "Side Lateral Raise", sets: 6 }, { name: "Rear Delt Machine", sets: 6 }, { name: "Standing Calf Raise", sets: 4 }, { name: "Seated Calf Raise", sets: 4 }]
                 }},
                 3: { title: "Strength", targetReps: "4-6", workouts: {
@@ -268,7 +269,7 @@
                                 <button onClick={clearData} className="text-slate-500 hover:text-red-500 p-2"><Icons.Trash /></button>
                             </div>
                         </header>
-
+                        
                         <nav className="flex bg-white dark:bg-slate-900 sticky top-0 z-20 shadow-sm">
                             {[1, 2, 3].map(p => (
                                 <button key={p} onClick={() => setPhase(p)} className={`flex-1 py-4 text-xs font-black uppercase border-b-4 transition-colors ${phase === p ? 'border-red-600 text-red-600' : 'border-transparent text-slate-400'}`}>Phase {p}</button>
