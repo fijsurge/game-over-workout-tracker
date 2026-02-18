@@ -89,7 +89,65 @@
             };
 
             const APP_ID = 'game-over-tracker-v5';
-            const APP_VERSION = '3.1.0';
+            const APP_VERSION = '4.0.0';
+
+            // Step 1: Get effective exercise name (swap or original)
+            const getEffectiveName = (phase, day, originalName, swaps) => {
+                return swaps[`${phase}-${day}-${originalName}`] || originalName;
+            };
+
+            // Step 2: SwapPanel bottom-sheet component
+            const SwapPanel = ({ target, customExercises, dayExercises, onSelect, onRestore, onAddCustom, onRemoveCustom, onClose, darkMode }) => {
+                const [draft, setDraft] = React.useState('');
+                const currentDayNames = dayExercises.map(ex => ex.name);
+                const available = customExercises.filter(name => !currentDayNames.includes(name) && name !== target.originalName);
+
+                return (
+                    <div className="fixed inset-0 z-50 flex items-end justify-center">
+                        <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+                        <div className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-t-3xl p-6 pb-8 max-h-[70vh] overflow-y-auto">
+                            <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto mb-4" />
+                            <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase mb-1">Swap Exercise</h3>
+                            <p className="text-xs text-slate-400 mb-4">Replace <span className="font-bold text-slate-600 dark:text-slate-300">{target.originalName}</span></p>
+
+                            {target.isSwapped && (
+                                <button onClick={onRestore} className="w-full mb-4 p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl text-sm font-bold text-slate-600 dark:text-slate-300 active:scale-95 transition-transform">
+                                    Restore Original
+                                </button>
+                            )}
+
+                            {available.length > 0 ? (
+                                <div className="space-y-2 mb-4">
+                                    {available.map(name => (
+                                        <div key={name} className="flex items-center gap-2">
+                                            <button onClick={() => onSelect(name)} className="flex-1 p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl text-sm font-bold text-slate-700 dark:text-slate-200 text-left active:scale-95 transition-transform">
+                                                {name}
+                                            </button>
+                                            <button onClick={() => onRemoveCustom(name)} className="p-2 text-slate-400 hover:text-red-500">
+                                                <Icons.Trash />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-xs text-slate-400 mb-4">No custom exercises yet. Add one below.</p>
+                            )}
+
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={draft}
+                                    onChange={(e) => setDraft(e.target.value)}
+                                    placeholder="New exercise name"
+                                    className="flex-1 p-3 bg-slate-50 dark:bg-slate-800 dark:text-white rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-red-500 placeholder:text-slate-300 dark:placeholder:text-slate-600"
+                                    onKeyDown={(e) => { if (e.key === 'Enter' && draft.trim()) { onAddCustom(draft.trim()); setDraft(''); } }}
+                                />
+                                <button onClick={() => { if (draft.trim()) { onAddCustom(draft.trim()); setDraft(''); } }} className="px-4 py-3 bg-red-600 text-white rounded-xl text-sm font-black active:scale-95 transition-transform">Add</button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
 
             // Migrate data from older app versions (v1-v4) into current version
             (function migrateOldData() {
@@ -168,6 +226,12 @@
                 const [toast, setToast] = useState(null);
                 const [darkMode, setDarkMode] = useState(() => localStorage.getItem(`${APP_ID}_darkMode`) === 'true');
                 const [showSettings, setShowSettings] = useState(false);
+                const [customExercises, setCustomExercises] = useState(() => {
+                    const saved = localStorage.getItem(`${APP_ID}_customExercises`);
+                    return saved ? JSON.parse(saved) : [];
+                });
+                const [swaps, setSwaps] = useState({});
+                const [swapTarget, setSwapTarget] = useState(null);
 
                 useEffect(() => {
                     localStorage.setItem(`${APP_ID}_darkMode`, darkMode);
@@ -178,15 +242,58 @@
                 useEffect(() => {
                     const savedLogs = localStorage.getItem(`${APP_ID}_logs`);
                     const savedHistory = localStorage.getItem(`${APP_ID}_history`);
+                    const savedSwaps = localStorage.getItem(`${APP_ID}_swaps`);
                     const hasSaved = localStorage.getItem(`${APP_ID}_saved`);
-                    if (savedLogs && !hasSaved) setLogs(JSON.parse(savedLogs));
-                    if (hasSaved) localStorage.removeItem(`${APP_ID}_saved`);
+                    if (hasSaved) {
+                        localStorage.removeItem(`${APP_ID}_saved`);
+                    } else {
+                        if (savedLogs) setLogs(JSON.parse(savedLogs));
+                        if (savedSwaps) setSwaps(JSON.parse(savedSwaps));
+                    }
                     if (savedHistory) setHistory(JSON.parse(savedHistory));
                 }, []);
 
                 useEffect(() => {
                     localStorage.setItem(`${APP_ID}_logs`, JSON.stringify(logs));
                 }, [logs]);
+
+                useEffect(() => {
+                    localStorage.setItem(`${APP_ID}_swaps`, JSON.stringify(swaps));
+                }, [swaps]);
+
+                useEffect(() => {
+                    localStorage.setItem(`${APP_ID}_customExercises`, JSON.stringify(customExercises));
+                }, [customExercises]);
+
+                // Swap handler functions
+                const openSwap = (phase, day, originalName) => {
+                    const swapKey = `${phase}-${day}-${originalName}`;
+                    setSwapTarget({ phase, day, originalName, isSwapped: !!swaps[swapKey] });
+                };
+                const closeSwap = () => setSwapTarget(null);
+                const selectSwap = (originalName, substituteName) => {
+                    setSwaps({ ...swaps, [`${swapTarget.phase}-${swapTarget.day}-${originalName}`]: substituteName });
+                    setSwapTarget(null);
+                };
+                const restoreSwap = () => {
+                    const newSwaps = { ...swaps };
+                    delete newSwaps[`${swapTarget.phase}-${swapTarget.day}-${swapTarget.originalName}`];
+                    setSwaps(newSwaps);
+                    setSwapTarget(null);
+                };
+                const addCustomExercise = (name) => {
+                    if (!customExercises.includes(name)) {
+                        setCustomExercises([...customExercises, name]);
+                    }
+                };
+                const removeCustomExercise = (name) => {
+                    setCustomExercises(customExercises.filter(n => n !== name));
+                    const newSwaps = { ...swaps };
+                    Object.keys(newSwaps).forEach(key => {
+                        if (newSwaps[key] === name) delete newSwaps[key];
+                    });
+                    setSwaps(newSwaps);
+                };
 
                 const saveSession = () => {
                     const timestamp = new Date().toISOString();
@@ -206,9 +313,10 @@
 
                 const clearData = () => {
                     if (confirm("Permanently delete all workout history?")) {
-                        setLogs({}); setHistory([]);
+                        setLogs({}); setHistory([]); setSwaps({});
                         localStorage.removeItem(`${APP_ID}_logs`);
                         localStorage.removeItem(`${APP_ID}_history`);
+                        localStorage.removeItem(`${APP_ID}_swaps`);
                         window.location.reload();
                     }
                 };
@@ -216,8 +324,9 @@
                 const allExerciseStats = useMemo(() => {
                     const exercises = programData[phase].workouts[day];
                     return exercises.map(ex => {
-                        const filtered = history.filter(h => h.key.includes(ex.name));
-                        if (filtered.length === 0) return { name: ex.name, avgData: [], setData: [] };
+                        const effectiveName = getEffectiveName(phase, day, ex.name, swaps);
+                        const filtered = history.filter(h => h.key.includes(effectiveName));
+                        if (filtered.length === 0) return { name: effectiveName, avgData: [], setData: [] };
                         const setData = filtered.map(h => ({
                             date: h.date.slice(5),
                             weight: parseFloat(h.w),
@@ -233,9 +342,9 @@
                             avgWeight: Math.round((entries.reduce((s, e) => s + e.w, 0) / entries.length) * 10) / 10,
                             avgReps: Math.round((entries.reduce((s, e) => s + e.r, 0) / entries.length) * 10) / 10
                         })).sort((a, b) => a.date.localeCompare(b.date));
-                        return { name: ex.name, avgData, setData };
+                        return { name: effectiveName, avgData, setData };
                     });
-                }, [history, phase, day]);
+                }, [history, phase, day, swaps]);
 
                 return (
                     <div className="min-h-screen pb-24 font-sans max-w-md mx-auto relative bg-slate-50 dark:bg-slate-950">
@@ -285,18 +394,25 @@
                                     <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400"><Icons.Chevron /></div>
                                 </div>
 
-                                {programData[phase].workouts[day].map((ex) => (
+                                {programData[phase].workouts[day].map((ex) => {
+                                    const effectiveName = getEffectiveName(phase, day, ex.name, swaps);
+                                    const isSwapped = effectiveName !== ex.name;
+                                    return (
                                     <div key={ex.name} className="bg-white dark:bg-slate-900 p-5 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
                                         <div className="flex justify-between items-start mb-4">
-                                            <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase flex items-center gap-2 text-wrap pr-2">
-                                                <Icons.Dumbbell /> {ex.name}
-                                            </h3>
+                                            <div className="flex-1 pr-2">
+                                                <button onClick={() => openSwap(phase, day, ex.name)} className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase flex items-center gap-2 text-wrap text-left active:text-red-600 transition-colors">
+                                                    <Icons.Dumbbell /> {effectiveName}
+                                                    {isSwapped && <span className="text-[9px] font-black px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900 text-amber-600 dark:text-amber-400 rounded uppercase shrink-0">SUB</span>}
+                                                </button>
+                                                {isSwapped && <p className="text-[10px] text-slate-400 mt-1 ml-6">instead of {ex.name}</p>}
+                                            </div>
                                             <span className="text-[10px] font-black px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-slate-500 dark:text-slate-400 uppercase shrink-0">{ex.sets} Sets</span>
                                         </div>
                                         <div className="space-y-3">
                                             {[...Array(ex.sets)].map((_, i) => {
                                                 const s = i + 1;
-                                                const logKey = `${phase}-${day}-${ex.name}-s${s}`;
+                                                const logKey = `${phase}-${day}-${effectiveName}-s${s}`;
                                                 const data = logs[logKey] || { w: '', r: '' };
                                                 return (
                                                     <div key={s} className="flex gap-2 items-center">
@@ -324,7 +440,8 @@
                                             })}
                                         </div>
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         ) : (
                             <div className="p-4 space-y-4">
@@ -370,6 +487,20 @@
                             <button onClick={saveSession} className="bg-red-600 text-white p-4 rounded-2xl shadow-lg -mt-8 flex justify-center active:scale-95 transition-all transform"><Icons.Save /></button>
                             <button onClick={() => setView('stats')} className={`flex flex-col items-center gap-1 transition-colors ${view === 'stats' ? 'text-red-600' : 'text-slate-400'}`}><Icons.BarChart3 /> <span className="text-[10px] font-black uppercase">Stats</span></button>
                         </div>
+
+                        {swapTarget && (
+                            <SwapPanel
+                                target={swapTarget}
+                                customExercises={customExercises}
+                                dayExercises={programData[swapTarget.phase].workouts[swapTarget.day]}
+                                onSelect={(name) => selectSwap(swapTarget.originalName, name)}
+                                onRestore={restoreSwap}
+                                onAddCustom={addCustomExercise}
+                                onRemoveCustom={removeCustomExercise}
+                                onClose={closeSwap}
+                                darkMode={darkMode}
+                            />
+                        )}
                     </div>
                 );
             }
