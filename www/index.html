@@ -23,7 +23,7 @@
     <link rel="apple-touch-icon" sizes="512x512" href="/icon-512.png">
 
     <!-- Tailwind CSS (Development CDN) -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="./lib/tailwindcss.js"></script>
     <script>tailwind.config = { darkMode: 'class' }</script>
     
     <!-- Stable Production CDNs -->
@@ -31,7 +31,7 @@
     <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
     <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="./lib/babel.min.js"></script>
 
     <style>
         body { -webkit-tap-highlight-color: transparent; background-color: #f8fafc; }
@@ -94,6 +94,18 @@
             // Step 1: Get effective exercise name (swap or original)
             const getEffectiveName = (phase, day, originalName, swaps) => {
                 return swaps[`${phase}-${day}-${originalName}`] || originalName;
+            };
+
+            // Rep range color coding
+            const getRepColorClass = (phase, repValue) => {
+                if (!repValue && repValue !== 0) return 'bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white';
+                const r = parseInt(repValue);
+                if (isNaN(r)) return 'bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white';
+                const ranges = { 1: [12, 15], 2: [6, 10], 3: [4, 6] };
+                const [min, max] = ranges[phase];
+                if (r < min) return 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400';
+                if (r > max) return 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400';
+                return 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400';
             };
 
             // Step 2: SwapPanel bottom-sheet component
@@ -205,7 +217,7 @@
                     "Monday": [{ name: "Incline Barbell Press", sets: 6 }, { name: "Flat Barbell Press", sets: 6 }, { name: "Pec Deck", sets: 4 }, { name: "Push Ups", sets: 3 }, { name: "V-ups", sets: 4 }, { name: "Leg Raises", sets: 4 }, { name: "Leaning Oblique Crunches", sets: 4 }],
                     "Tuesday": [{ name: "Squats", sets: 6 }, { name: "Stiff Leg Deadlift", sets: 6 }, { name: "Leg Curl", sets: 4 }, { name: "Leg Press", sets: 6 }, { name: "Leg Extension", sets: 4 }, { name: "Standing Calf Raise", sets: 4 }, { name: "Seated Calf Raise", sets: 4 }],
                     "Wednesday": [{ name: "High Row Wide Grip", sets: 6 }, { name: "Close Grip Low Row", sets: 6 }, { name: "Wide Grip Pull Downs", sets: 6 }, { name: "Dumbbell Pullovers", sets: 4 }, { name: "Barbell Shrugs", sets: 6 }, { name: "Hyperextensions", sets: 4 }],
-                    "Friday": [{ name: "Dumbbell Curls", sets: 6 }, { name: "Preacher Curls", sets: 6 }, { name: "Concentration Curls", sets: 3 }, { name: "Close Grip Press", sets: 6 }, { name: "V-Bar Press Down", sets: 6 }, { name: "Single Arm Over Head Ext", sets: 3 }, { name: "Toe Touches", sets: 4 }, { name: "Roman Chair Knee Ups", sets: 4 }],
+                    "Friday": [{ name: "Dumbbell Curls", sets: 6 }, { name: "Preacher Curls", sets: 6 }, { name: "Concentration Curls", sets: 3 }, { name: "Close Grip Press", sets: 6 }, { name: "V-Bar Press Down", sets: 6 }, { name: "Single Arm Over Head Ext", sets: 3 }, { name: "Toe Touches", sets: 4 }, { name: "Roman Chair Knee Ups", sets: 4 }, { name: "Cable Wood Chops", sets: 4 }],
                     "Saturday": [{ name: "Dumbbell Military Press", sets: 6 }, { name: "Front DB Raise", sets: 6 }, { name: "Side Lateral Raise", sets: 6 }, { name: "Rear Delt Machine", sets: 6 }, { name: "Standing Calf Raise", sets: 4 }, { name: "Seated Calf Raise", sets: 4 }]
                 }},
                 3: { title: "Strength", targetReps: "4-6", workouts: {
@@ -215,6 +227,226 @@
                     "Friday": [{ name: "Barbell Curls", sets: 6 }, { name: "Preacher Curls", sets: 6 }, { name: "Hammer Curls", sets: 3 }, { name: "Triceps Press Down", sets: 6 }, { name: "Overhead Extension", sets: 6 }, { name: "Weighted Dips", sets: 3 }, { name: "V-Ups", sets: 4 }, { name: "Leg Raises", sets: 4 }, { name: "Cable Wood Chops", sets: 4 }],
                     "Saturday": [{ name: "Overhead Press", sets: 6 }, { name: "DB Front Raise", sets: 6 }, { name: "Side Lateral Raise", sets: 5 }, { name: "Rear Delt Fly", sets: 6 }, { name: "Standing Calf Raise", sets: 4 }, { name: "Seated Calf Raise", sets: 4 }]
                 }}
+            };
+
+            const repDotColor = (avgReps, phase) => {
+                const ranges = { 1: [12, 15], 2: [6, 10], 3: [4, 6] };
+                const [min, max] = ranges[phase];
+                if (avgReps < min) return '#ef4444';
+                if (avgReps > max) return '#3b82f6';
+                return '#22c55e';
+            };
+
+            const SubBadge = ({ isOriginalOfSwap, isHistoricalSub }) => {
+                if (isOriginalOfSwap) return <span className="text-[9px] font-black px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 rounded uppercase shrink-0">ORIG</span>;
+                if (isHistoricalSub) return <span className="text-[9px] font-black px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded uppercase shrink-0">SUB</span>;
+                return null;
+            };
+
+            const StatCardA = ({ exStat, darkMode }) => {
+                const { name, sessions, bestWeight, firstAvgWeight, lastAvgWeight, trend, avgData, isOriginalOfSwap, isHistoricalSub, substituteFor } = exStat;
+                const faded = isOriginalOfSwap || isHistoricalSub;
+                return (
+                    <div className={`bg-white dark:bg-slate-900 p-4 rounded-3xl shadow-sm border ${faded ? 'border-slate-200 dark:border-slate-700 opacity-75' : 'border-slate-100 dark:border-slate-800'}`}>
+                        <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase flex items-center gap-2 min-w-0 flex-1">
+                                <Icons.Dumbbell /><span className="truncate">{name}</span>
+                            </h3>
+                            <SubBadge isOriginalOfSwap={isOriginalOfSwap} isHistoricalSub={isHistoricalSub} />
+                        </div>
+                        {isOriginalOfSwap && <p className="text-[10px] text-slate-400 -mt-2 mb-3 ml-6">replaced by {substituteFor}</p>}
+                        {sessions > 0 ? (
+                            <div className="space-y-3">
+                                <div className="grid grid-cols-3 gap-2">
+                                    <div className="bg-slate-50 dark:bg-slate-800 rounded-2xl p-3 text-center">
+                                        <div className="text-lg font-black text-slate-800 dark:text-white">{sessions}</div>
+                                        <div className="text-[9px] font-bold text-slate-400 uppercase">Sessions</div>
+                                    </div>
+                                    <div className="bg-slate-50 dark:bg-slate-800 rounded-2xl p-3 text-center">
+                                        <div className="text-lg font-black text-slate-800 dark:text-white">{bestWeight}</div>
+                                        <div className="text-[9px] font-bold text-slate-400 uppercase">Best lbs</div>
+                                    </div>
+                                    <div className={`rounded-2xl p-3 text-center ${trend >= 0 ? 'bg-green-50 dark:bg-green-950/60' : 'bg-red-50 dark:bg-red-950/60'}`}>
+                                        <div className={`text-lg font-black ${trend >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>{trend > 0 ? '+' : ''}{trend}%</div>
+                                        <div className="text-[9px] font-bold text-slate-400 uppercase">Progress</div>
+                                    </div>
+                                </div>
+                                {sessions > 1 && (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[11px] font-bold text-slate-400 shrink-0">{firstAvgWeight}</span>
+                                        <div className="flex-1 h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                            <div className="h-full bg-gradient-to-r from-red-400 to-red-600 rounded-full" style={{width:`${Math.min(100,Math.max(8,(trend/35)*100))}%`}} />
+                                        </div>
+                                        <span className="text-[11px] font-black text-slate-800 dark:text-white shrink-0">{lastAvgWeight} lbs</span>
+                                    </div>
+                                )}
+                                {avgData.length > 0 && (
+                                    <div className="text-[10px] text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 rounded-xl px-3 py-2">
+                                        <span className="font-black text-slate-600 dark:text-slate-300">Last ({avgData[avgData.length-1].date}):</span>{' '}
+                                        {avgData[avgData.length-1].peakWeight} lbs peak · {avgData[avgData.length-1].avgReps} avg reps
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="text-slate-400 text-xs font-bold uppercase text-center py-6">No data yet</div>
+                        )}
+                    </div>
+                );
+            };
+
+            const StatCardB = ({ exStat, phase, darkMode }) => {
+                const { name, sessions, avgData, isOriginalOfSwap, isHistoricalSub, substituteFor } = exStat;
+                const faded = isOriginalOfSwap || isHistoricalSub;
+                return (
+                    <div className={`bg-white dark:bg-slate-900 p-4 rounded-3xl shadow-sm border ${faded ? 'border-slate-200 dark:border-slate-700 opacity-75' : 'border-slate-100 dark:border-slate-800'}`}>
+                        <div className="flex items-center justify-between mb-1">
+                            <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase flex items-center gap-2 min-w-0 flex-1">
+                                <Icons.Dumbbell /><span className="truncate">{name}</span>
+                            </h3>
+                            <SubBadge isOriginalOfSwap={isOriginalOfSwap} isHistoricalSub={isHistoricalSub} />
+                        </div>
+                        {isOriginalOfSwap && <p className="text-[10px] text-slate-400 mb-1 ml-6">replaced by {substituteFor}</p>}
+                        <div className="flex gap-3 text-[9px] font-bold mb-2">
+                            <span className="text-red-500">● below</span>
+                            <span className="text-green-500">● in range</span>
+                            <span className="text-blue-500">● increase wt</span>
+                        </div>
+                        {sessions > 0 ? (
+                            <div className="h-40">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart data={avgData} margin={{top:4,right:8,left:-20,bottom:0}}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? '#1e293b' : '#f1f5f9'} />
+                                        <XAxis dataKey="date" fontSize={9} tickLine={false} axisLine={false} tick={{ fill: darkMode ? '#94a3b8' : '#64748b' }} />
+                                        <YAxis domain={['auto','auto']} fontSize={9} tickLine={false} axisLine={false} tick={{ fill: darkMode ? '#94a3b8' : '#64748b' }} />
+                                        <Tooltip contentStyle={{borderRadius:'12px',border:'none',fontSize:11,backgroundColor:darkMode?'#1e293b':'#fff',color:darkMode?'#e2e8f0':'#000'}}
+                                            formatter={(v) => [`${v} lbs`,'Avg Weight']}
+                                            labelFormatter={(l) => { const d = avgData.find(x => x.date===l); return d ? `${l} · ${d.avgReps} avg reps` : l; }} />
+                                        <Line type="monotone" dataKey="avgWeight" stroke="#ef4444" strokeWidth={2}
+                                            dot={(props) => { const {cx,cy,payload}=props; if(cx==null) return null; const c=repDotColor(payload.avgReps,phase); return <circle key={`${cx}${cy}`} cx={cx} cy={cy} r={5} fill={c} stroke={darkMode?'#0f172a':'white'} strokeWidth={1.5}/>; }} />
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            </div>
+                        ) : (
+                            <div className="flex items-center justify-center h-40 text-slate-400 text-xs font-bold uppercase">No data yet</div>
+                        )}
+                    </div>
+                );
+            };
+
+            const StatCPanel = ({ stats, phase, darkMode }) => {
+                const [expanded, setExpanded] = React.useState(null);
+                return (
+                    <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
+                        <div className="grid px-4 py-2 bg-slate-50 dark:bg-slate-800/80" style={{gridTemplateColumns:'1fr 48px 72px 52px'}}>
+                            <div className="text-[9px] font-black text-slate-400 uppercase">Exercise</div>
+                            <div className="text-[9px] font-black text-slate-400 uppercase text-center">Sess.</div>
+                            <div className="text-[9px] font-black text-slate-400 uppercase text-right">Best</div>
+                            <div className="text-[9px] font-black text-slate-400 uppercase text-right">Trend</div>
+                        </div>
+                        {stats.map((exStat, i) => {
+                            const { name, sessions, bestWeight, trend, avgData, isOriginalOfSwap, isHistoricalSub } = exStat;
+                            const rowKey = `${name}-${isOriginalOfSwap}-${isHistoricalSub}`;
+                            const isExp = expanded === rowKey;
+                            return (
+                                <div key={rowKey}>
+                                    <button
+                                        onClick={() => setExpanded(isExp ? null : rowKey)}
+                                        className={`w-full grid px-4 py-3 text-left transition-colors active:bg-slate-50 dark:active:bg-slate-800 ${isOriginalOfSwap || isHistoricalSub ? 'opacity-60' : ''}`}
+                                        style={{gridTemplateColumns:'1fr 48px 72px 52px'}}
+                                    >
+                                        <div className="min-w-0 pr-2">
+                                            <div className="text-[11px] font-black text-slate-800 dark:text-slate-100 uppercase truncate">{name}</div>
+                                            {isOriginalOfSwap && <div className="text-[9px] font-bold text-slate-400">ORIG</div>}
+                                            {isHistoricalSub && <div className="text-[9px] font-bold text-blue-500">SUB</div>}
+                                        </div>
+                                        <div className="flex items-center justify-center text-xs font-bold text-slate-500">{sessions > 0 ? sessions : '—'}</div>
+                                        <div className="flex items-center justify-end text-xs font-black text-slate-800 dark:text-white">{bestWeight > 0 ? `${bestWeight} lbs` : '—'}</div>
+                                        <div className={`flex items-center justify-end text-xs font-black ${trend > 0 ? 'text-green-500' : trend < 0 ? 'text-red-500' : 'text-slate-400'}`}>
+                                            {sessions > 1 ? `${trend > 0 ? '▲' : '▼'}${Math.abs(trend)}%` : '—'}
+                                        </div>
+                                    </button>
+                                    {isExp && sessions > 0 && (
+                                        <div className="px-4 pb-4 bg-slate-50/60 dark:bg-slate-800/40">
+                                            <div className="h-36">
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <LineChart data={avgData} margin={{top:4,right:8,left:-20,bottom:0}}>
+                                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? '#1e293b' : '#f1f5f9'} />
+                                                        <XAxis dataKey="date" fontSize={9} tickLine={false} axisLine={false} tick={{ fill: darkMode ? '#94a3b8' : '#64748b' }} />
+                                                        <YAxis domain={['auto','auto']} fontSize={9} tickLine={false} axisLine={false} tick={{ fill: darkMode ? '#94a3b8' : '#64748b' }} />
+                                                        <Tooltip contentStyle={{borderRadius:'12px',border:'none',fontSize:11,backgroundColor:darkMode?'#1e293b':'#fff',color:darkMode?'#e2e8f0':'#000'}}
+                                                            formatter={(v) => [`${v} lbs`,'Avg Wt']}
+                                                            labelFormatter={(l) => { const d = avgData.find(x => x.date===l); return d ? `${l} · ${d.avgReps} avg reps` : l; }} />
+                                                        <Line type="monotone" dataKey="avgWeight" stroke="#ef4444" strokeWidth={2}
+                                                            dot={(props) => { const {cx,cy,payload}=props; if(cx==null) return null; const c=repDotColor(payload.avgReps,phase); return <circle key={`${cx}${cy}`} cx={cx} cy={cy} r={4} fill={c} stroke={darkMode?'#0f172a':'white'} strokeWidth={1}/>; }} />
+                                                    </LineChart>
+                                                </ResponsiveContainer>
+                                            </div>
+                                            <div className="flex gap-3 text-[9px] font-bold mt-1">
+                                                <span className="text-red-500">● below</span>
+                                                <span className="text-green-500">● in range</span>
+                                                <span className="text-blue-500">● increase wt</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                    {i < stats.length - 1 && <div className="border-t border-slate-100 dark:border-slate-800 mx-4" />}
+                                </div>
+                            );
+                        })}
+                    </div>
+                );
+            };
+
+            const StatCardD = ({ exStat, phase, darkMode }) => {
+                const { name, sessions, sessionLog, isOriginalOfSwap, isHistoricalSub, substituteFor } = exStat;
+                const [showAll, setShowAll] = React.useState(false);
+                const ranges = { 1: [12, 15], 2: [6, 10], 3: [4, 6] };
+                const [min, max] = ranges[phase];
+                const displayed = showAll ? sessionLog : sessionLog.slice(0, 3);
+                const faded = isOriginalOfSwap || isHistoricalSub;
+                return (
+                    <div className={`bg-white dark:bg-slate-900 p-4 rounded-3xl shadow-sm border ${faded ? 'border-slate-200 dark:border-slate-700 opacity-75' : 'border-slate-100 dark:border-slate-800'}`}>
+                        <div className="flex items-center justify-between mb-1">
+                            <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase flex items-center gap-2 min-w-0 flex-1">
+                                <Icons.Dumbbell /><span className="truncate">{name}</span>
+                            </h3>
+                            {faded
+                                ? <SubBadge isOriginalOfSwap={isOriginalOfSwap} isHistoricalSub={isHistoricalSub} />
+                                : sessions > 0 && <span className="text-[10px] font-bold text-slate-400 shrink-0">{sessions} sessions</span>}
+                        </div>
+                        {isOriginalOfSwap && <p className="text-[10px] text-slate-400 mb-2 ml-6">replaced by {substituteFor}</p>}
+                        {sessions > 0 ? (
+                            <div className="space-y-3 mt-2">
+                                {displayed.map(({ date, entries }) => (
+                                    <div key={date}>
+                                        <div className="text-[10px] font-black text-slate-400 uppercase mb-1.5">{date.slice(5)}</div>
+                                        <div className="flex gap-1.5">
+                                            {entries.map((entry, i) => {
+                                                const rc = entry.r < min
+                                                    ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400'
+                                                    : entry.r > max
+                                                    ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400'
+                                                    : 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400';
+                                                return (
+                                                    <div key={i} className="flex-1 text-center bg-slate-50 dark:bg-slate-800 rounded-xl p-2">
+                                                        <div className="text-[11px] font-black text-slate-700 dark:text-slate-200 leading-none mb-1">{entry.w}</div>
+                                                        <div className={`text-[10px] font-black rounded-lg px-0.5 py-0.5 ${rc}`}>{entry.r}r</div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                ))}
+                                {sessionLog.length > 3 && (
+                                    <button onClick={() => setShowAll(!showAll)} className="text-[10px] text-red-500 font-black w-full text-center py-1">
+                                        {showAll ? '▲ Show less' : `▼ Show ${sessionLog.length - 3} more sessions`}
+                                    </button>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="text-slate-400 text-xs font-bold uppercase text-center py-6">No data yet</div>
+                        )}
+                    </div>
+                );
             };
 
             function App() {
@@ -232,6 +464,15 @@
                 });
                 const [swaps, setSwaps] = useState({});
                 const [swapTarget, setSwapTarget] = useState(null);
+                const [statsView, setStatsView] = useState('A');
+
+                const getSuggestedWeight = (phase, day, effectiveName, setNum) => {
+                    const logKey = `${phase}-${day}-${effectiveName}-s${setNum}`;
+                    const matches = history
+                        .filter(h => h.key === logKey && h.w)
+                        .sort((a, b) => b.date.localeCompare(a.date));
+                    return matches.length > 0 ? matches[0].w : null;
+                };
 
                 useEffect(() => {
                     localStorage.setItem(`${APP_ID}_darkMode`, darkMode);
@@ -259,11 +500,72 @@
 
                 useEffect(() => {
                     localStorage.setItem(`${APP_ID}_swaps`, JSON.stringify(swaps));
+                    if (window.Capacitor && window.Capacitor.Plugins.WearPlugin) {
+                        window.Capacitor.Plugins.WearPlugin.syncSwaps({
+                            swaps: JSON.stringify(swaps),
+                            customExercises: JSON.stringify(customExercises)
+                        }).catch(() => {});
+                    }
                 }, [swaps]);
 
                 useEffect(() => {
                     localStorage.setItem(`${APP_ID}_customExercises`, JSON.stringify(customExercises));
+                    if (window.Capacitor && window.Capacitor.Plugins.WearPlugin) {
+                        window.Capacitor.Plugins.WearPlugin.syncSwaps({
+                            swaps: JSON.stringify(swaps),
+                            customExercises: JSON.stringify(customExercises)
+                        }).catch(() => {});
+                    }
                 }, [customExercises]);
+
+                // Sync history and swaps to SharedPreferences on app mount so watch works offline
+                useEffect(() => {
+                    if (window.Capacitor && window.Capacitor.Plugins.WearPlugin) {
+                        const hist = JSON.parse(localStorage.getItem(`${APP_ID}_history`) || '[]');
+                        window.Capacitor.Plugins.WearPlugin.syncHistory({
+                            history: JSON.stringify(hist)
+                        }).catch(() => {});
+                        window.Capacitor.Plugins.WearPlugin.syncSwaps({
+                            swaps: JSON.stringify(swaps),
+                            customExercises: JSON.stringify(customExercises)
+                        }).catch(() => {});
+                    }
+                }, []);
+
+                // Listen for events from Wear OS watch
+                useEffect(() => {
+                    if (window.Capacitor && window.Capacitor.Plugins.WearPlugin) {
+                        const setLogHandler = (event) => {
+                            try {
+                                const setData = JSON.parse(event.data);
+                                const logKey = `${setData.phase}-${setData.day}-${setData.exerciseName}-s${setData.setNum}`;
+                                setLogs(prev => ({...prev, [logKey]: { w: setData.weight, r: setData.reps }}));
+                                const entry = { key: logKey, w: setData.weight, r: setData.reps, date: setData.date };
+                                setHistory(prev => {
+                                    const newHist = [...prev, entry];
+                                    localStorage.setItem(`${APP_ID}_history`, JSON.stringify(newHist));
+                                    return newHist;
+                                });
+                            } catch(e) {}
+                        };
+                        const swapHandler = (event) => {
+                            try {
+                                const { phase, day, originalName, newName } = event;
+                                const swapKey = `${phase}-${day}-${originalName}`;
+                                setSwaps(prev => {
+                                    const updated = { ...prev };
+                                    if (newName === '') delete updated[swapKey];
+                                    else updated[swapKey] = newName;
+                                    localStorage.setItem(`${APP_ID}_swaps`, JSON.stringify(updated));
+                                    return updated;
+                                });
+                            } catch(e) {}
+                        };
+                        window.Capacitor.Plugins.WearPlugin.addListener('setLoggedFromWatch', setLogHandler);
+                        window.Capacitor.Plugins.WearPlugin.addListener('swapFromWatch', swapHandler);
+                        return () => window.Capacitor.Plugins.WearPlugin.removeAllListeners();
+                    }
+                }, []);
 
                 // Swap handler functions
                 const openSwap = (phase, day, originalName) => {
@@ -309,6 +611,12 @@
                     localStorage.setItem(`${APP_ID}_saved`, 'true');
                     setToast("PROGRESS SAVED");
                     setTimeout(() => setToast(null), 2000);
+                    // Sync history to Wear OS companion app
+                    if (window.Capacitor && window.Capacitor.Plugins.WearPlugin) {
+                        window.Capacitor.Plugins.WearPlugin.syncHistory({
+                            history: JSON.stringify(newHistory)
+                        }).catch(() => {});
+                    }
                 };
 
                 const clearData = () => {
@@ -323,15 +631,9 @@
 
                 const allExerciseStats = useMemo(() => {
                     const exercises = programData[phase].workouts[day];
-                    return exercises.map(ex => {
-                        const effectiveName = getEffectiveName(phase, day, ex.name, swaps);
-                        const filtered = history.filter(h => h.key.includes(effectiveName));
-                        if (filtered.length === 0) return { name: effectiveName, avgData: [], setData: [] };
-                        const setData = filtered.map(h => ({
-                            date: h.date.slice(5),
-                            weight: parseFloat(h.w),
-                            reps: parseFloat(h.r)
-                        })).sort((a, b) => a.date.localeCompare(b.date));
+                    const getStatsForName = (name) => {
+                        const filtered = history.filter(h => h.key.startsWith(`${phase}-`) && h.key.includes(`-${name}-`));
+                        if (filtered.length === 0) return { name, avgData: [], setData: [], sessionLog: [], sessions: 0, bestWeight: 0, firstAvgWeight: 0, lastAvgWeight: 0, trend: 0 };
                         const byDate = {};
                         filtered.forEach(h => {
                             if (!byDate[h.date]) byDate[h.date] = [];
@@ -340,10 +642,53 @@
                         const avgData = Object.entries(byDate).map(([date, entries]) => ({
                             date: date.slice(5),
                             avgWeight: Math.round((entries.reduce((s, e) => s + e.w, 0) / entries.length) * 10) / 10,
+                            peakWeight: Math.max(...entries.map(e => e.w)),
                             avgReps: Math.round((entries.reduce((s, e) => s + e.r, 0) / entries.length) * 10) / 10
                         })).sort((a, b) => a.date.localeCompare(b.date));
-                        return { name: effectiveName, avgData, setData };
+                        const setData = filtered.map(h => ({ date: h.date.slice(5), weight: parseFloat(h.w), reps: parseFloat(h.r) })).sort((a, b) => a.date.localeCompare(b.date));
+                        const sessionLog = Object.entries(byDate).sort((a, b) => b[0].localeCompare(a[0])).map(([date, entries]) => ({ date, entries }));
+                        const bestWeight = Math.max(...filtered.map(h => parseFloat(h.w)));
+                        const sessions = Object.keys(byDate).length;
+                        const firstAvgWeight = avgData[0]?.avgWeight || 0;
+                        const lastAvgWeight = avgData[avgData.length - 1]?.avgWeight || 0;
+                        const trend = firstAvgWeight > 0 ? Math.round(((lastAvgWeight - firstAvgWeight) / firstAvgWeight) * 100) : 0;
+                        return { name, avgData, setData, sessionLog, sessions, bestWeight, firstAvgWeight, lastAvgWeight, trend };
+                    };
+
+                    const result = [];
+                    exercises.forEach(ex => {
+                        const effectiveName = getEffectiveName(phase, day, ex.name, swaps);
+                        const isSwapped = effectiveName !== ex.name;
+                        result.push(getStatsForName(effectiveName));
+                        if (isSwapped) {
+                            const origStats = getStatsForName(ex.name);
+                            if (origStats.avgData.length > 0) {
+                                result.push({ ...origStats, isOriginalOfSwap: true, substituteFor: effectiveName });
+                            }
+                        }
                     });
+
+                    // Also surface any exercise that was ever logged on this phase/day
+                    // but isn't currently in the program or active swap list
+                    const includedNames = new Set(result.map(r => r.name));
+                    const prefix = `${phase}-${day}-`;
+                    const historyNames = new Set();
+                    history.forEach(h => {
+                        if (h.key.startsWith(prefix)) {
+                            const exerciseName = h.key.slice(prefix.length).replace(/-s\d+$/, '');
+                            historyNames.add(exerciseName);
+                        }
+                    });
+                    historyNames.forEach(name => {
+                        if (!includedNames.has(name)) {
+                            const stats = getStatsForName(name);
+                            if (stats.sessions > 0) {
+                                result.push({ ...stats, isHistoricalSub: true });
+                            }
+                        }
+                    });
+
+                    return result;
                 }, [history, phase, day, swaps]);
 
                 return (
@@ -414,6 +759,8 @@
                                                 const s = i + 1;
                                                 const logKey = `${phase}-${day}-${effectiveName}-s${s}`;
                                                 const data = logs[logKey] || { w: '', r: '' };
+                                                const suggested = getSuggestedWeight(phase, day, effectiveName, s);
+                                                const repColorClass = getRepColorClass(phase, data.r);
                                                 return (
                                                     <div key={s} className="flex gap-2 items-center">
                                                         <div className="w-8 h-8 flex items-center justify-center bg-slate-900 dark:bg-slate-700 rounded-lg text-[10px] font-black text-white shrink-0">S{s}</div>
@@ -421,10 +768,10 @@
                                                             <input
                                                                 type="number"
                                                                 inputMode="decimal"
-                                                                placeholder="Lbs"
+                                                                placeholder={suggested ? `${suggested}` : "Lbs"}
                                                                 value={data.w}
                                                                 onChange={(e) => setLogs({...logs, [logKey]: {...data, w: e.target.value}})}
-                                                                className="w-full p-3 bg-slate-50 dark:bg-slate-800 dark:text-white rounded-xl text-center font-bold outline-none focus:ring-2 focus:ring-red-500 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600"
+                                                                className="w-full p-3 bg-slate-50 dark:bg-slate-800 dark:text-white rounded-xl text-center font-bold outline-none focus:ring-2 focus:ring-red-500 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-400"
                                                             />
                                                             <input
                                                                 type="number"
@@ -432,7 +779,7 @@
                                                                 placeholder="Reps"
                                                                 value={data.r}
                                                                 onChange={(e) => setLogs({...logs, [logKey]: {...data, r: e.target.value}})}
-                                                                className="w-full p-3 bg-slate-50 dark:bg-slate-800 dark:text-white rounded-xl text-center font-black outline-none focus:ring-2 focus:ring-red-500 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600"
+                                                                className={`w-full p-3 rounded-xl text-center font-black outline-none focus:ring-2 focus:ring-red-500 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 ${repColorClass}`}
                                                             />
                                                         </div>
                                                     </div>
@@ -444,7 +791,7 @@
                                 })}
                             </div>
                         ) : (
-                            <div className="p-4 space-y-4">
+                            <div className="p-4 space-y-3">
                                 <div className="relative">
                                     <select value={day} onChange={(e) => setDay(e.target.value)} className="w-full p-4 bg-white dark:bg-slate-900 dark:text-white rounded-2xl border-none shadow-sm text-lg font-bold appearance-none">
                                         {Object.keys(programData[phase].workouts).map(d => <option key={d} value={d}>{d}</option>)}
@@ -452,33 +799,26 @@
                                     <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400"><Icons.Chevron /></div>
                                 </div>
 
-                                {allExerciseStats.map(exStat => (
-                                    <div key={exStat.name} className="bg-white dark:bg-slate-900 p-5 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
-                                        <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase flex items-center gap-2 mb-4">
-                                            <Icons.Dumbbell /> {exStat.name}
-                                        </h3>
-                                        {exStat.avgData.length > 0 ? (
-                                            <div className="h-64">
-                                                <ResponsiveContainer width="100%" height="100%">
-                                                    <ComposedChart data={exStat.avgData}>
-                                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? '#1e293b' : '#f1f5f9'} />
-                                                        <XAxis dataKey="date" fontSize={10} tickLine={false} axisLine={false} tick={{ fill: darkMode ? '#94a3b8' : '#64748b' }} />
-                                                        <YAxis yAxisId="weight" fontSize={10} tickLine={false} axisLine={false} tick={{ fill: darkMode ? '#94a3b8' : '#64748b' }} label={{ value: 'Lbs', angle: -90, position: 'insideLeft', style: { fontSize: 10, fill: '#94a3b8' } }} />
-                                                        <YAxis yAxisId="reps" orientation="right" fontSize={10} tickLine={false} axisLine={false} tick={{ fill: darkMode ? '#94a3b8' : '#64748b' }} label={{ value: 'Reps', angle: 90, position: 'insideRight', style: { fontSize: 10, fill: '#94a3b8' } }} />
-                                                        <Tooltip contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: darkMode ? '#1e293b' : '#fff', color: darkMode ? '#e2e8f0' : '#000'}} />
-                                                        <Legend verticalAlign="top" height={36} wrapperStyle={{fontSize: '10px', fontWeight: 'bold', color: darkMode ? '#e2e8f0' : undefined}} />
-                                                        <Line yAxisId="weight" type="monotone" name="Avg Weight" dataKey="avgWeight" stroke="#ef4444" strokeWidth={2} dot={false} />
-                                                        <Line yAxisId="reps" type="monotone" name="Avg Reps" dataKey="avgReps" stroke="#3b82f6" strokeWidth={2} dot={false} />
-                                                        <Scatter yAxisId="weight" name="Weight" data={exStat.setData} dataKey="weight" fill="#ef4444" opacity={0.5} />
-                                                        <Scatter yAxisId="reps" name="Reps" data={exStat.setData} dataKey="reps" fill="#3b82f6" opacity={0.5} />
-                                                    </ComposedChart>
-                                                </ResponsiveContainer>
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-center justify-center h-32 text-center text-slate-400 font-bold uppercase text-xs">No data yet</div>
-                                        )}
-                                    </div>
-                                ))}
+                                <div className="flex bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-sm">
+                                    {[['A','Summary'],['B','Chart'],['C','Table'],['D','Log']].map(([id, label]) => (
+                                        <button key={id} onClick={() => setStatsView(id)}
+                                            className={`flex-1 py-2.5 text-[11px] font-black uppercase transition-colors ${statsView === id ? 'bg-red-600 text-white' : 'text-slate-400 dark:text-slate-500'}`}>
+                                            {label}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {statsView === 'C' ? (
+                                    <StatCPanel stats={allExerciseStats} phase={phase} darkMode={darkMode} />
+                                ) : (
+                                    allExerciseStats.map(exStat => {
+                                        const key = `${exStat.name}-${exStat.isOriginalOfSwap}`;
+                                        if (statsView === 'A') return <StatCardA key={key} exStat={exStat} darkMode={darkMode} />;
+                                        if (statsView === 'B') return <StatCardB key={key} exStat={exStat} phase={phase} darkMode={darkMode} />;
+                                        if (statsView === 'D') return <StatCardD key={key} exStat={exStat} phase={phase} darkMode={darkMode} />;
+                                        return null;
+                                    })
+                                )}
                             </div>
                         )}
 
