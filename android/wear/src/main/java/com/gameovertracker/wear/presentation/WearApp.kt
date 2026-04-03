@@ -35,8 +35,10 @@ fun WearApp() {
                 workoutData = workoutData,
                 completedExercises = completedExercises,
                 onWorkoutLoaded = { data ->
+                    if (workoutData?.phase != data.phase || workoutData?.day != data.day) {
+                        completedExercises = setOf()
+                    }
                     workoutData = data
-                    completedExercises = setOf()
                 },
                 onExerciseSelected = { exIdx ->
                     navController.navigate(

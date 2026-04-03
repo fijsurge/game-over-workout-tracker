@@ -11,6 +11,8 @@ const val PATH_WORKOUT_DATA = "/workout-data"
 const val PATH_LOG_SET = "/log-set"
 const val PATH_SET_LOGGED = "/set-logged"
 const val PATH_SWAP_EXERCISE = "/swap-exercise"
+const val PATH_SAVE_WORKOUT = "/save-workout"
+const val PATH_UNDO_SET = "/undo-set"
 
 suspend fun getPhoneNodeId(context: Context): String? {
     return try {

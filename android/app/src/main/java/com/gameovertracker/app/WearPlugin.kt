@@ -143,6 +143,8 @@ class WearPlugin : Plugin() {
             when (event.path) {
                 "/request-workout" -> Thread { handleRequestWorkout(String(event.data), event.sourceNodeId) }.start()
                 "/swap-exercise" -> Thread { handleSwapExercise(String(event.data)) }.start()
+                "/save-workout" -> Thread { handleSaveWorkout() }.start()
+                "/undo-set" -> Thread { handleUndoSet(String(event.data)) }.start()
             }
         }
         messageListener = listener
@@ -267,6 +269,76 @@ class WearPlugin : Plugin() {
             } catch (e: Exception) { }
         }
         return latestWeight
+    }
+
+    private fun handleUndoSet(payload: String) {
+        try {
+            val req = JSONObject(payload)
+            val phase = req.getInt("phase")
+            val day = req.getString("day")
+            val exerciseName = req.getString("exerciseName")
+            val setNum = req.getInt("setNum")
+            val date = req.getString("date")
+
+            val logKey = "$phase-$day-$exerciseName-s$setNum"
+
+            val prefs = context.getSharedPreferences("GameOverWear", Context.MODE_PRIVATE)
+            val historyJson = prefs.getString("history", "[]") ?: "[]"
+            val history = try { JSONArray(historyJson) } catch (e: Exception) { JSONArray() }
+
+            // Find the most recent entry for this key on this date and remove it
+            var removeIdx = -1
+            for (i in history.length() - 1 downTo 0) {
+                val entry = history.getJSONObject(i)
+                if (entry.optString("key") == logKey && entry.optString("date") == date) {
+                    removeIdx = i
+                    break
+                }
+            }
+
+            if (removeIdx >= 0) {
+                val newHistory = JSONArray()
+                for (i in 0 until history.length()) {
+                    if (i != removeIdx) newHistory.put(history.getJSONObject(i))
+                }
+                prefs.edit().putString("history", newHistory.toString()).apply()
+            }
+
+            val result = JSObject()
+                .put("phase", phase)
+                .put("day", day)
+                .put("exerciseName", exerciseName)
+                .put("setNum", setNum)
+                .put("date", date)
+            notifyListeners("undoSetFromWatch", result)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun handleSaveWorkout() {
+        try {
+            val prefs = context.getSharedPreferences("GameOverWear", Context.MODE_PRIVATE)
+            val historyJson = prefs.getString("history", "[]") ?: "[]"
+            val result = JSObject().put("history", historyJson)
+            notifyListeners("workoutSavedFromWatch", result)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    @PluginMethod
+    fun getSwaps(call: PluginCall) {
+        val prefs = context.getSharedPreferences("GameOverWear", Context.MODE_PRIVATE)
+        val swapsJson = prefs.getString("swaps", "{}") ?: "{}"
+        call.resolve(JSObject().put("swaps", swapsJson))
+    }
+
+    @PluginMethod
+    fun getHistory(call: PluginCall) {
+        val prefs = context.getSharedPreferences("GameOverWear", Context.MODE_PRIVATE)
+        val historyJson = prefs.getString("history", "[]") ?: "[]"
+        call.resolve(JSObject().put("history", historyJson))
     }
 
     @PluginMethod

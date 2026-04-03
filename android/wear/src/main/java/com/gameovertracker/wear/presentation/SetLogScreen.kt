@@ -85,14 +85,16 @@ fun SetLogScreen(
     val suggestion = exercise.suggestions.getOrNull(currentSetNum - 1)?.toFloatOrNull() ?: 0f
     val (repMin, repMax) = getRepRange(exercise.name, phase)
     val repColor = when {
-        repMin == 1 && repMax == 999 -> Color(0xFF22C55E) // unranked: always green
+        repMin == 1 && repMax == 999 -> Color(0xFF22C55E)
         reps < repMin -> Color.Red
         reps > repMax -> Color(0xFF3B82F6)
         else -> Color(0xFF22C55E)
     }
 
-    // Rest timer screen
+    // Rest timer screen — shows countdown plus upcoming set info
     if (pendingNextSetNum != null) {
+        val nextSet = pendingNextSetNum!!
+        val nextSuggestion = exercise.suggestions.getOrNull(nextSet - 1)?.takeIf { it.isNotEmpty() }
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(
                 progress = restTimerSeconds / 60f,
@@ -109,11 +111,21 @@ fun SetLogScreen(
                     color = Color.White
                 )
                 Text("sec rest", fontSize = 11.sp, color = Color.Gray)
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(4.dp))
+                Text("Set $nextSet of ${exercise.sets}", fontSize = 10.sp, color = Color(0xFF94A3B8))
+                if (nextSuggestion != null) {
+                    Text(
+                        text = "$nextSuggestion lbs",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+                Spacer(Modifier.height(6.dp))
                 CompactButton(
                     onClick = {
-                        pendingNextSetNum?.let { nextSet ->
-                            currentSetNum = nextSet
+                        pendingNextSetNum?.let { ns ->
+                            currentSetNum = ns
                             logging = false
                             pendingNextSetNum = null
                         }
@@ -166,7 +178,7 @@ fun SetLogScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 10.dp)
+                .padding(start = 10.dp, top = 24.dp, end = 10.dp, bottom = 16.dp)
                 .pointerInput(inputPhase) {
                     detectVerticalDragGestures(
                         onDragStart = { dragAcc = 0f },
@@ -187,134 +199,174 @@ fun SetLogScreen(
                     )
                 },
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(
-                text = exercise.name,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Black,
-                color = Color.White,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Text(
-                text = "Set $currentSetNum/${exercise.sets} · ${if (inputPhase == "WEIGHT") "WEIGHT" else "REPS"}",
-                fontSize = 10.sp,
-                color = Color.Gray
-            )
-            Spacer(Modifier.height(4.dp))
-
-            CompactButton(
-                onClick = {
-                    if (inputPhase == "WEIGHT") weight = (weight + weightStep).coerceAtLeast(0f)
-                    else reps = (reps + 1).coerceAtLeast(0)
-                },
-                colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF334155))
-            ) {
-                Text("+", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            }
-
-            val valueColor = if (inputPhase == "WEIGHT") Color.White else repColor
-            val valueText = if (inputPhase == "WEIGHT") {
-                if (weight == weight.toLong().toFloat()) "${weight.toLong()}" else "%.1f".format(weight)
-            } else "$reps"
-
-            Box(
-                modifier = Modifier
-                    .clickable { showKeypad = true }
-                    .padding(vertical = 2.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Row(verticalAlignment = Alignment.Bottom) {
-                        Text(valueText, fontSize = 34.sp, fontWeight = FontWeight.Black, color = valueColor)
-                        if (inputPhase == "WEIGHT") {
-                            Spacer(Modifier.width(4.dp))
-                            Text("lbs", fontSize = 13.sp, color = Color.Gray,
-                                modifier = Modifier.padding(bottom = 5.dp))
-                        }
-                    }
-                    if (inputPhase == "WEIGHT") {
-                        if (suggestion > 0f) {
-                            val suggStr = if (suggestion == suggestion.toLong().toFloat())
-                                suggestion.toLong().toString() else "%.1f".format(suggestion)
-                            Text("last: $suggStr lbs", fontSize = 10.sp, color = Color(0xFF94A3B8))
-                        } else {
-                            Text("tap to enter", fontSize = 9.sp, color = Color(0xFF475569))
-                        }
-                    } else {
-                        Text(
-                            if (repMin == 1 && repMax == 999) "no fixed target"
-                            else "target: $repMin–$repMax",
-                            fontSize = 10.sp, color = Color.Gray
-                        )
-                    }
-                }
-            }
-
-            CompactButton(
-                onClick = {
-                    if (inputPhase == "WEIGHT") weight = (weight - weightStep).coerceAtLeast(0f)
-                    else reps = (reps - 1).coerceAtLeast(0)
-                },
-                colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF334155))
-            ) {
-                Text("−", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            }
-
-            Spacer(Modifier.height(6.dp))
-
-            if (inputPhase == "WEIGHT") {
-                Button(
-                    onClick = { inputPhase = "REPS" },
-                    colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF1E293B)),
+            // TOP: exercise name + set info row with undo button
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = exercise.name,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Black,
+                    color = Color.White,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
                     modifier = Modifier.fillMaxWidth()
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
                 ) {
-                    Text("NEXT → REPS", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = "Set $currentSetNum/${exercise.sets} · ${if (inputPhase == "WEIGHT") "WEIGHT" else "REPS"}",
+                        fontSize = 10.sp,
+                        color = Color.Gray
+                    )
+                    if (currentSetNum > 1) {
+                        Spacer(Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(20.dp)
+                                .background(Color(0xFF1E293B), RoundedCornerShape(10.dp))
+                                .clickable {
+                                    scope.launch {
+                                        val undoSetNum = currentSetNum - 1
+                                        val payload = JSONObject().apply {
+                                            put("phase", phase)
+                                            put("day", day)
+                                            put("exerciseName", exercise.name)
+                                            put("setNum", undoSetNum)
+                                            put("date", LocalDate.now().toString())
+                                        }.toString()
+                                        sendMessageToPhone(context, PATH_UNDO_SET, payload)
+                                        currentSetNum = undoSetNum
+                                        logging = false
+                                    }
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("↩", fontSize = 9.sp, color = Color(0xFF94A3B8))
+                        }
+                    }
                 }
-            } else {
-                Button(
+            }
+
+            // MIDDLE: stepper (+/value/-)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                CompactButton(
                     onClick = {
-                        if (!logging) {
-                            logging = true
-                            scope.launch {
-                                val weightStr = if (weight == weight.toLong().toFloat())
-                                    weight.toLong().toString() else "%.1f".format(weight)
-                                val payload = JSONObject().apply {
-                                    put("phase", phase)
-                                    put("day", day)
-                                    put("exerciseName", exercise.name)
-                                    put("setNum", currentSetNum)
-                                    put("weight", weightStr)
-                                    put("reps", reps.toString())
-                                    put("date", LocalDate.now().toString())
-                                }.toString()
-                                sendMessageToPhone(context, PATH_LOG_SET, payload)
-                                logged = true
-                                delay(600)
-                                val nextSetNum = currentSetNum + 1
-                                if (nextSetNum <= exercise.sets) {
-                                    logged = false
-                                    pendingNextSetNum = nextSetNum
-                                } else {
-                                    onExerciseDone()
-                                }
+                        if (inputPhase == "WEIGHT") weight = (weight + weightStep).coerceAtLeast(0f)
+                        else reps = (reps + 1).coerceAtLeast(0)
+                    },
+                    colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF334155))
+                ) {
+                    Text("+", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                }
+
+                val valueColor = if (inputPhase == "WEIGHT") Color.White else repColor
+                val valueText = if (inputPhase == "WEIGHT") {
+                    if (weight == weight.toLong().toFloat()) "${weight.toLong()}" else "%.1f".format(weight)
+                } else "$reps"
+
+                Box(
+                    modifier = Modifier
+                        .clickable { showKeypad = true }
+                        .padding(vertical = 2.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            Text(valueText, fontSize = 34.sp, fontWeight = FontWeight.Black, color = valueColor)
+                            if (inputPhase == "WEIGHT") {
+                                Spacer(Modifier.width(4.dp))
+                                Text("lbs", fontSize = 13.sp, color = Color.Gray,
+                                    modifier = Modifier.padding(bottom = 5.dp))
                             }
                         }
-                    },
-                    colors = ButtonDefaults.buttonColors(backgroundColor = Color.Red),
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !logging
-                ) {
-                    Text("LOG SET", fontSize = 11.sp, fontWeight = FontWeight.Black)
+                        if (inputPhase == "WEIGHT") {
+                            if (suggestion > 0f) {
+                                val suggStr = if (suggestion == suggestion.toLong().toFloat())
+                                    suggestion.toLong().toString() else "%.1f".format(suggestion)
+                                Text("last: $suggStr lbs", fontSize = 10.sp, color = Color(0xFF94A3B8))
+                            } else {
+                                Text("tap to enter", fontSize = 9.sp, color = Color(0xFF475569))
+                            }
+                        } else {
+                            Text(
+                                if (repMin == 1 && repMax == 999) "no fixed target"
+                                else "target: $repMin–$repMax",
+                                fontSize = 10.sp, color = Color.Gray
+                            )
+                        }
+                    }
                 }
-                Spacer(Modifier.height(2.dp))
+
                 CompactButton(
-                    onClick = { inputPhase = "WEIGHT" },
-                    colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF1E293B))
+                    onClick = {
+                        if (inputPhase == "WEIGHT") weight = (weight - weightStep).coerceAtLeast(0f)
+                        else reps = (reps - 1).coerceAtLeast(0)
+                    },
+                    colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF334155))
                 ) {
-                    Text("← Wt", fontSize = 9.sp)
+                    Text("−", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            }
+
+            // BOTTOM: action buttons
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                if (inputPhase == "WEIGHT") {
+                    Button(
+                        onClick = { inputPhase = "REPS" },
+                        colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF1E293B)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("NEXT → REPS", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            if (!logging) {
+                                logging = true
+                                scope.launch {
+                                    val weightStr = if (weight == weight.toLong().toFloat())
+                                        weight.toLong().toString() else "%.1f".format(weight)
+                                    val payload = JSONObject().apply {
+                                        put("phase", phase)
+                                        put("day", day)
+                                        put("exerciseName", exercise.name)
+                                        put("setNum", currentSetNum)
+                                        put("weight", weightStr)
+                                        put("reps", reps.toString())
+                                        put("date", LocalDate.now().toString())
+                                    }.toString()
+                                    sendMessageToPhone(context, PATH_LOG_SET, payload)
+                                    logged = true
+                                    delay(600)
+                                    val nextSetNum = currentSetNum + 1
+                                    if (nextSetNum <= exercise.sets) {
+                                        logged = false
+                                        pendingNextSetNum = nextSetNum
+                                    } else {
+                                        onExerciseDone()
+                                    }
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(backgroundColor = Color.Red),
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !logging
+                    ) {
+                        Text("LOG SET", fontSize = 11.sp, fontWeight = FontWeight.Black)
+                    }
+                    Spacer(Modifier.height(2.dp))
+                    CompactButton(
+                        onClick = { inputPhase = "WEIGHT" },
+                        colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF1E293B))
+                    ) {
+                        Text("← Wt", fontSize = 9.sp)
+                    }
                 }
             }
         }
@@ -346,24 +398,29 @@ fun KeypadScreen(
         )
     }
 
-    Scaffold {
-        ScalingLazyColumn(
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .padding(horizontal = 10.dp, vertical = 10.dp)
+    ) {
+        Column(
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 20.dp)
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            item {
+            // Header + display
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     if (isWeight) "Weight (lbs)" else "Reps",
-                    fontSize = 11.sp, color = Color.Gray
+                    fontSize = 10.sp, color = Color.Gray
                 )
-            }
-            item {
+                Spacer(Modifier.height(3.dp))
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(Color(0xFF1E293B), RoundedCornerShape(8.dp))
-                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                        .padding(horizontal = 12.dp, vertical = 5.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -374,47 +431,53 @@ fun KeypadScreen(
                     )
                 }
             }
-            rows.forEach { row ->
-                item {
+
+            // Numpad rows
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                rows.forEach { row ->
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 2.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         row.forEach { key ->
                             if (key == " ") {
                                 Spacer(Modifier.weight(1f))
                             } else {
-                                CompactButton(
-                                    onClick = {
-                                        when (key) {
-                                            "⌫" -> if (input.isNotEmpty()) input = input.dropLast(1)
-                                            "." -> if (!input.contains(".")) input += "."
-                                            else -> input += key
-                                        }
-                                    },
-                                    colors = ButtonDefaults.buttonColors(
-                                        backgroundColor = Color(0xFF334155)
-                                    ),
-                                    modifier = Modifier.weight(1f)
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(32.dp)
+                                        .background(Color(0xFF334155), RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            when (key) {
+                                                "⌫" -> if (input.isNotEmpty()) input = input.dropLast(1)
+                                                "." -> if (!input.contains(".")) input += "."
+                                                else -> input += key
+                                            }
+                                        },
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    Text(key, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                                    Text(key, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                 }
                             }
                         }
                     }
                 }
             }
-            item { Spacer(Modifier.height(2.dp)) }
-            item {
-                Button(
-                    onClick = { onConfirm(if (input.isEmpty()) "0" else input) },
-                    colors = ButtonDefaults.buttonColors(backgroundColor = Color.Red),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("DONE", fontSize = 12.sp, fontWeight = FontWeight.Black)
-                }
+
+            // DONE button
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(34.dp)
+                    .background(Color.Red, RoundedCornerShape(17.dp))
+                    .clickable { onConfirm(if (input.isEmpty()) "0" else input) },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("DONE", fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color.White)
             }
         }
     }

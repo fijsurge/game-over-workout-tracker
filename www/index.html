@@ -492,6 +492,31 @@
                         if (savedSwaps) setSwaps(JSON.parse(savedSwaps));
                     }
                     if (savedHistory) setHistory(JSON.parse(savedHistory));
+                    // Merge swaps and history from watch (SharedPreferences) to pick up watch-side changes
+                    if (window.Capacitor && window.Capacitor.Plugins.WearPlugin) {
+                        window.Capacitor.Plugins.WearPlugin.getSwaps().then(result => {
+                            const watchSwaps = JSON.parse(result.swaps || '{}');
+                            if (Object.keys(watchSwaps).length > 0) {
+                                const localSwaps = JSON.parse(savedSwaps || '{}');
+                                const merged = { ...localSwaps, ...watchSwaps };
+                                setSwaps(merged);
+                                localStorage.setItem(`${APP_ID}_swaps`, JSON.stringify(merged));
+                            }
+                        }).catch(() => {});
+                        window.Capacitor.Plugins.WearPlugin.getHistory().then(result => {
+                            const watchHistory = JSON.parse(result.history || '[]');
+                            if (watchHistory.length > 0) {
+                                setHistory(prev => {
+                                    const existingSet = new Set(prev.map(e => `${e.key}|${e.date}|${e.w}`));
+                                    const newEntries = watchHistory.filter(e => !existingSet.has(`${e.key}|${e.date}|${e.w}`));
+                                    if (newEntries.length === 0) return prev;
+                                    const merged = [...prev, ...newEntries];
+                                    localStorage.setItem(`${APP_ID}_history`, JSON.stringify(merged));
+                                    return merged;
+                                });
+                            }
+                        }).catch(() => {});
+                    }
                 }, []);
 
                 useEffect(() => {
@@ -561,8 +586,48 @@
                                 });
                             } catch(e) {}
                         };
+                        const workoutSavedHandler = (event) => {
+                            try {
+                                const watchHistory = JSON.parse(event.history || '[]');
+                                if (watchHistory.length > 0) {
+                                    setHistory(prev => {
+                                        const existingSet = new Set(prev.map(e => `${e.key}|${e.date}|${e.w}`));
+                                        const newEntries = watchHistory.filter(e => !existingSet.has(`${e.key}|${e.date}|${e.w}`));
+                                        if (newEntries.length === 0) return prev;
+                                        const merged = [...prev, ...newEntries];
+                                        localStorage.setItem(`${APP_ID}_history`, JSON.stringify(merged));
+                                        return merged;
+                                    });
+                                }
+                                setToast("WORKOUT SAVED FROM WATCH");
+                                setTimeout(() => setToast(null), 2500);
+                            } catch(e) {}
+                        };
+                        const undoSetHandler = (event) => {
+                            try {
+                                const { phase, day, exerciseName, setNum, date } = event;
+                                const logKey = `${phase}-${day}-${exerciseName}-s${setNum}`;
+                                // Remove the matching entry from history (most recent first)
+                                setHistory(prev => {
+                                    const idx = [...prev].reverse().findIndex(e => e.key === logKey && e.date === date);
+                                    if (idx === -1) return prev;
+                                    const realIdx = prev.length - 1 - idx;
+                                    const newHist = prev.filter((_, i) => i !== realIdx);
+                                    localStorage.setItem(`${APP_ID}_history`, JSON.stringify(newHist));
+                                    return newHist;
+                                });
+                                // Also clear the current session log for this set
+                                setLogs(prev => {
+                                    const updated = { ...prev };
+                                    delete updated[logKey];
+                                    return updated;
+                                });
+                            } catch(e) {}
+                        };
                         window.Capacitor.Plugins.WearPlugin.addListener('setLoggedFromWatch', setLogHandler);
                         window.Capacitor.Plugins.WearPlugin.addListener('swapFromWatch', swapHandler);
+                        window.Capacitor.Plugins.WearPlugin.addListener('workoutSavedFromWatch', workoutSavedHandler);
+                        window.Capacitor.Plugins.WearPlugin.addListener('undoSetFromWatch', undoSetHandler);
                         return () => window.Capacitor.Plugins.WearPlugin.removeAllListeners();
                     }
                 }, []);
