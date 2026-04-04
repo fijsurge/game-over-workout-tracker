@@ -31,6 +31,7 @@ fun ExerciseListScreen(
     val scope = rememberCoroutineScope()
     var loading by remember { mutableStateOf(workoutData == null || workoutData.phase != phase || workoutData.day != day) }
     var error by remember { mutableStateOf<String?>(null) }
+    var saveConfirmed by remember { mutableStateOf(false) }
     val listState = rememberScalingLazyListState()
 
     fun requestWorkout() {
@@ -183,6 +184,49 @@ fun ExerciseListScreen(
                                     modifier = Modifier.size(36.dp)
                                 ) {
                                     Text("⇄", fontSize = 13.sp, color = Color.White)
+                                }
+                            }
+                        }
+                    }
+                    if (allDone) {
+                        item { Spacer(Modifier.height(8.dp)) }
+                        item {
+                            if (saveConfirmed) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.padding(8.dp)
+                                ) {
+                                    Text("✓", fontSize = 24.sp, color = Color(0xFF22C55E))
+                                    Text(
+                                        "Workout Saved!",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
+                            } else {
+                                Button(
+                                    onClick = {
+                                        scope.launch {
+                                            val payload = JSONObject()
+                                                .put("phase", phase)
+                                                .put("day", day)
+                                                .toString()
+                                            sendMessageToPhone(context, PATH_SAVE_WORKOUT, payload)
+                                            saveConfirmed = true
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF22C55E)),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 8.dp)
+                                ) {
+                                    Text(
+                                        "SAVE WORKOUT",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = Color.Black
+                                    )
                                 }
                             }
                         }

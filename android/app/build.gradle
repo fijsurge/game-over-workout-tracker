@@ -1,4 +1,5 @@
 apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
 
 android {
     namespace = "com.gameovertracker.app"
@@ -40,6 +41,8 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
+    implementation "com.google.android.gms:play-services-wearable:18.2.0"
+    implementation "androidx.localbroadcastmanager:localbroadcastmanager:1.1.0"
 }
 
 apply from: 'capacitor.build.gradle'

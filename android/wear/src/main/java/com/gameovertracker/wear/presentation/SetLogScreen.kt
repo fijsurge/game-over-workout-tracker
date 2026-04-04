@@ -91,7 +91,7 @@ fun SetLogScreen(
         else -> Color(0xFF22C55E)
     }
 
-    // Rest timer screen — shows countdown plus upcoming set info
+    // Rest timer screen
     if (pendingNextSetNum != null) {
         val nextSet = pendingNextSetNum!!
         val nextSuggestion = exercise.suggestions.getOrNull(nextSet - 1)?.takeIf { it.isNotEmpty() }
@@ -122,17 +122,21 @@ fun SetLogScreen(
                     )
                 }
                 Spacer(Modifier.height(6.dp))
-                CompactButton(
-                    onClick = {
-                        pendingNextSetNum?.let { ns ->
-                            currentSetNum = ns
-                            logging = false
-                            pendingNextSetNum = null
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF334155))
+                Box(
+                    modifier = Modifier
+                        .width(72.dp)
+                        .height(36.dp)
+                        .background(Color(0xFF334155), RoundedCornerShape(18.dp))
+                        .clickable {
+                            pendingNextSetNum?.let { ns ->
+                                currentSetNum = ns
+                                logging = false
+                                pendingNextSetNum = null
+                            }
+                        },
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text("SKIP", fontSize = 9.sp, color = Color.White)
+                    Text("SKIP", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 }
             }
         }
@@ -170,6 +174,11 @@ fun SetLogScreen(
 
     val weightStep = 2.5f
     var dragAcc by remember(inputPhase) { mutableStateOf(0f) }
+
+    val valueColor = if (inputPhase == "WEIGHT") Color.White else repColor
+    val valueText = if (inputPhase == "WEIGHT") {
+        if (weight == weight.toLong().toFloat()) "${weight.toLong()}" else "%.1f".format(weight)
+    } else "$reps"
 
     Scaffold(
         timeText = { TimeText() },
@@ -250,27 +259,29 @@ fun SetLogScreen(
                 }
             }
 
-            // MIDDLE: stepper (+/value/-)
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                CompactButton(
-                    onClick = {
-                        if (inputPhase == "WEIGHT") weight = (weight + weightStep).coerceAtLeast(0f)
-                        else reps = (reps + 1).coerceAtLeast(0)
-                    },
-                    colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF334155))
+            // MIDDLE: horizontal stepper (−  value  +)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .background(Color(0xFF334155), RoundedCornerShape(22.dp))
+                        .clickable {
+                            if (inputPhase == "WEIGHT") weight = (weight - weightStep).coerceAtLeast(0f)
+                            else reps = (reps - 1).coerceAtLeast(0)
+                        },
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text("+", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("−", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 }
-
-                val valueColor = if (inputPhase == "WEIGHT") Color.White else repColor
-                val valueText = if (inputPhase == "WEIGHT") {
-                    if (weight == weight.toLong().toFloat()) "${weight.toLong()}" else "%.1f".format(weight)
-                } else "$reps"
 
                 Box(
                     modifier = Modifier
                         .clickable { showKeypad = true }
-                        .padding(vertical = 2.dp),
+                        .padding(horizontal = 4.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -300,33 +311,42 @@ fun SetLogScreen(
                     }
                 }
 
-                CompactButton(
-                    onClick = {
-                        if (inputPhase == "WEIGHT") weight = (weight - weightStep).coerceAtLeast(0f)
-                        else reps = (reps - 1).coerceAtLeast(0)
-                    },
-                    colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF334155))
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .background(Color(0xFF334155), RoundedCornerShape(22.dp))
+                        .clickable {
+                            if (inputPhase == "WEIGHT") weight = (weight + weightStep).coerceAtLeast(0f)
+                            else reps = (reps + 1).coerceAtLeast(0)
+                        },
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text("−", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("+", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 }
             }
 
-            // BOTTOM: action buttons
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                if (inputPhase == "WEIGHT") {
-                    Button(
-                        onClick = { inputPhase = "REPS" },
-                        colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF1E293B)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("NEXT → REPS", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    }
-                } else {
-                    Button(
-                        onClick = {
+            // BOTTOM: action button (no back button — swipe left to go back)
+            if (inputPhase == "WEIGHT") {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                        .background(Color(0xFF1E293B), RoundedCornerShape(26.dp))
+                        .clickable { inputPhase = "REPS" },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("NEXT → REPS", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                        .background(
+                            if (logging) Color(0xFF7F1D1D) else Color.Red,
+                            RoundedCornerShape(26.dp)
+                        )
+                        .clickable {
                             if (!logging) {
                                 logging = true
                                 scope.launch {
@@ -354,19 +374,9 @@ fun SetLogScreen(
                                 }
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(backgroundColor = Color.Red),
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = !logging
-                    ) {
-                        Text("LOG SET", fontSize = 11.sp, fontWeight = FontWeight.Black)
-                    }
-                    Spacer(Modifier.height(2.dp))
-                    CompactButton(
-                        onClick = { inputPhase = "WEIGHT" },
-                        colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF1E293B))
-                    ) {
-                        Text("← Wt", fontSize = 9.sp)
-                    }
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("LOG SET", fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color.White)
                 }
             }
         }
@@ -472,8 +482,8 @@ fun KeypadScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(34.dp)
-                    .background(Color.Red, RoundedCornerShape(17.dp))
+                    .height(36.dp)
+                    .background(Color.Red, RoundedCornerShape(18.dp))
                     .clickable { onConfirm(if (input.isEmpty()) "0" else input) },
                 contentAlignment = Alignment.Center
             ) {

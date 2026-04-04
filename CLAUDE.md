@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Session Start
+
+At the start of every session, read the memory index at:
+`C:\Users\fijis\.claude\projects\D--github-game-over-workout-tracker\memory\MEMORY.md`
+and load any relevant memory files before responding to the user's first request.
+
 ## Project Overview
 
 Game Over Workout Tracker — a single-file React PWA for tracking workouts based on the "Game Over" fitness program. Tracks weights/reps across 3 training phases with analytics visualization.
