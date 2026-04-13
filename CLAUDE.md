@@ -30,6 +30,13 @@ npm run test:e2e    # Playwright E2E tests only (~25s) — browser UI flows
 npm run test:kt     # Kotlin JUnit tests only (~60s) — Wear nav route utils
 ```
 
+**Tests must be kept in sync with the code.** When implementing any change:
+- If you modify logic in `src/core.js` — update or add tests in `tests/unit/`
+- If you add or change a UI feature — update or add tests in `tests/e2e/app.spec.js`
+- If you add or change Wear nav routes — update or add tests in `android/wear/src/test/`
+- If a change makes an existing test fail, fix the test to match the new intended behavior (don't just delete it)
+- New features should have at least one test covering the happy path before being pushed
+
 **Core logic lives in `src/core.js`** (and mirrored to `www/src/core.js`). When editing `mergeHistory`, `deleteOneHistoryEntry`, `getExerciseStats`, or `makeLogKey`, update `src/core.js` — both HTML files load it as a script tag and call these as globals. Keep `www/src/core.js` in sync with `src/core.js` (same as the `index.html` / `www/index.html` sync requirement).
 
 ## Architecture
