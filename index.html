@@ -396,22 +396,35 @@
                 );
             };
 
-            const StatCardD = ({ exStat, phase, darkMode }) => {
+            const StatCardD = ({ exStat, phase, darkMode, onDeleteEntry }) => {
                 const { name, sessions, sessionLog, isOriginalOfSwap, isHistoricalSub, substituteFor } = exStat;
                 const [showAll, setShowAll] = React.useState(false);
+                const [editMode, setEditMode] = React.useState(false);
                 const ranges = { 1: [12, 15], 2: [6, 10], 3: [4, 6] };
                 const [min, max] = ranges[phase];
                 const displayed = showAll ? sessionLog : sessionLog.slice(0, 3);
                 const faded = isOriginalOfSwap || isHistoricalSub;
+                const handleDelete = (key, date, setLabel) => {
+                    if (confirm(`Delete this set (${setLabel})? This cannot be undone.`)) {
+                        onDeleteEntry(key, date);
+                    }
+                };
                 return (
                     <div className={`bg-white dark:bg-slate-900 p-4 rounded-3xl shadow-sm border ${faded ? 'border-slate-200 dark:border-slate-700 opacity-75' : 'border-slate-100 dark:border-slate-800'}`}>
                         <div className="flex items-center justify-between mb-1">
                             <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase flex items-center gap-2 min-w-0 flex-1">
                                 <Icons.Dumbbell /><span className="truncate">{name}</span>
                             </h3>
-                            {faded
-                                ? <SubBadge isOriginalOfSwap={isOriginalOfSwap} isHistoricalSub={isHistoricalSub} />
-                                : sessions > 0 && <span className="text-[10px] font-bold text-slate-400 shrink-0">{sessions} sessions</span>}
+                            <div className="flex items-center gap-2 shrink-0">
+                                {faded
+                                    ? <SubBadge isOriginalOfSwap={isOriginalOfSwap} isHistoricalSub={isHistoricalSub} />
+                                    : sessions > 0 && <span className="text-[10px] font-bold text-slate-400">{sessions} sessions</span>}
+                                {sessions > 0 && onDeleteEntry && (
+                                    <button onClick={() => setEditMode(!editMode)} className={`text-base leading-none px-1 ${editMode ? 'text-green-500' : 'text-slate-300 dark:text-slate-600'}`} title={editMode ? 'Done editing' : 'Edit sets'}>
+                                        {editMode ? '✓' : '✎'}
+                                    </button>
+                                )}
+                            </div>
                         </div>
                         {isOriginalOfSwap && <p className="text-[10px] text-slate-400 mb-2 ml-6">replaced by {substituteFor}</p>}
                         {sessions > 0 ? (
@@ -427,9 +440,10 @@
                                                     ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400'
                                                     : 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400';
                                                 return (
-                                                    <div key={i} className="flex-1 text-center bg-slate-50 dark:bg-slate-800 rounded-xl p-2">
+                                                    <div key={i} className="relative flex-1 text-center bg-slate-50 dark:bg-slate-800 rounded-xl p-2">
                                                         <div className="text-[11px] font-black text-slate-700 dark:text-slate-200 leading-none mb-1">{entry.w}</div>
                                                         <div className={`text-[10px] font-black rounded-lg px-0.5 py-0.5 ${rc}`}>{entry.r}r</div>
+                                                        {editMode && <button onClick={() => handleDelete(entry.key, date, `${entry.w}lb × ${entry.r}r`)} className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-black leading-none flex items-center justify-center">✕</button>}
                                                     </div>
                                                 );
                                             })}
@@ -567,7 +581,10 @@
                                 setLogs(prev => ({...prev, [logKey]: { w: setData.weight, r: setData.reps }}));
                                 const entry = { key: logKey, w: setData.weight, r: setData.reps, date: setData.date };
                                 setHistory(prev => {
-                                    const newHist = [...prev, entry];
+                                    // Replace any existing entry for same set+date so buffered
+                                    // event replays and re-logs don't create duplicates
+                                    const filtered = prev.filter(e => !(e.key === entry.key && e.date === entry.date));
+                                    const newHist = [...filtered, entry];
                                     localStorage.setItem(`${APP_ID}_history`, JSON.stringify(newHist));
                                     return newHist;
                                 });
@@ -670,7 +687,9 @@
                         date: timestamp.split('T')[0]
                     })).filter(entry => entry.w && entry.r);
 
-                    const newHistory = [...history, ...sessionEntries];
+                    // Replace any existing entry for same key+date (dedup against watch-logged sets)
+                    const base = history.filter(h => !sessionEntries.some(e => e.key === h.key && e.date === h.date));
+                    const newHistory = [...base, ...sessionEntries];
                     setHistory(newHistory);
                     localStorage.setItem(`${APP_ID}_history`, JSON.stringify(newHistory));
                     localStorage.setItem(`${APP_ID}_saved`, 'true');
@@ -694,6 +713,19 @@
                     }
                 };
 
+                const deleteHistoryEntry = (key, date) => {
+                    setHistory(prev => {
+                        const idx = prev.findIndex(e => e.key === key && e.date === date);
+                        if (idx === -1) return prev;
+                        const newHist = [...prev.slice(0, idx), ...prev.slice(idx + 1)];
+                        localStorage.setItem(`${APP_ID}_history`, JSON.stringify(newHist));
+                        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.WearPlugin) {
+                            window.Capacitor.Plugins.WearPlugin.syncHistory({ history: JSON.stringify(newHist) }).catch(() => {});
+                        }
+                        return newHist;
+                    });
+                };
+
                 const allExerciseStats = useMemo(() => {
                     const exercises = programData[phase].workouts[day];
                     const getStatsForName = (name) => {
@@ -702,7 +734,7 @@
                         const byDate = {};
                         filtered.forEach(h => {
                             if (!byDate[h.date]) byDate[h.date] = [];
-                            byDate[h.date].push({ w: parseFloat(h.w), r: parseFloat(h.r) });
+                            byDate[h.date].push({ w: parseFloat(h.w), r: parseFloat(h.r), key: h.key });
                         });
                         const avgData = Object.entries(byDate).map(([date, entries]) => ({
                             date: date.slice(5),
@@ -880,7 +912,7 @@
                                         const key = `${exStat.name}-${exStat.isOriginalOfSwap}`;
                                         if (statsView === 'A') return <StatCardA key={key} exStat={exStat} darkMode={darkMode} />;
                                         if (statsView === 'B') return <StatCardB key={key} exStat={exStat} phase={phase} darkMode={darkMode} />;
-                                        if (statsView === 'D') return <StatCardD key={key} exStat={exStat} phase={phase} darkMode={darkMode} />;
+                                        if (statsView === 'D') return <StatCardD key={key} exStat={exStat} phase={phase} darkMode={darkMode} onDeleteEntry={deleteHistoryEntry} />;
                                         return null;
                                     })
                                 )}

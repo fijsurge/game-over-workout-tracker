@@ -42,7 +42,7 @@ fun WearApp() {
                 },
                 onExerciseSelected = { exIdx ->
                     navController.navigate(
-                        "log/$phase/${java.net.URLEncoder.encode(day, "UTF-8")}/$exIdx"
+                        "log_w/$phase/${java.net.URLEncoder.encode(day, "UTF-8")}/$exIdx/1"
                     )
                 },
                 onSwapExercise = { exIdx ->
@@ -52,24 +52,64 @@ fun WearApp() {
                 }
             )
         }
-        composable("log/{phase}/{day}/{exIdx}") { back ->
+
+        // Weight entry for set N — swiping left goes back one screen naturally
+        composable("log_w/{phase}/{day}/{exIdx}/{setNum}") { back ->
             val phase = back.arguments?.getString("phase")?.toInt() ?: 1
             val day = java.net.URLDecoder.decode(
                 back.arguments?.getString("day") ?: "Monday", "UTF-8"
             )
             val exIdx = back.arguments?.getString("exIdx")?.toInt() ?: 0
-            SetLogScreen(
+            val setNum = back.arguments?.getString("setNum")?.toInt() ?: 1
+            WeightScreen(
                 phase = phase,
                 day = day,
                 exerciseIdx = exIdx,
+                setNum = setNum,
                 workoutData = workoutData,
-                onExerciseDone = {
-                    completedExercises = completedExercises + exIdx
-                    navController.popBackStack()
+                onNext = { weightStr ->
+                    navController.navigate(
+                        "log_r/$phase/${java.net.URLEncoder.encode(day, "UTF-8")}/$exIdx/$setNum/${java.net.URLEncoder.encode(weightStr, "UTF-8")}"
+                    )
                 },
                 onBack = { navController.popBackStack() }
             )
         }
+
+        // Reps entry for set N — swiping left goes back to weight screen for same set
+        composable("log_r/{phase}/{day}/{exIdx}/{setNum}/{weight}") { back ->
+            val phase = back.arguments?.getString("phase")?.toInt() ?: 1
+            val day = java.net.URLDecoder.decode(
+                back.arguments?.getString("day") ?: "Monday", "UTF-8"
+            )
+            val exIdx = back.arguments?.getString("exIdx")?.toInt() ?: 0
+            val setNum = back.arguments?.getString("setNum")?.toInt() ?: 1
+            val weightStr = java.net.URLDecoder.decode(
+                back.arguments?.getString("weight") ?: "0", "UTF-8"
+            )
+            RepsScreen(
+                phase = phase,
+                day = day,
+                exerciseIdx = exIdx,
+                setNum = setNum,
+                weightStr = weightStr,
+                workoutData = workoutData,
+                onNextSet = {
+                    navController.navigate(
+                        "log_w/$phase/${java.net.URLEncoder.encode(day, "UTF-8")}/$exIdx/${setNum + 1}"
+                    )
+                },
+                onExerciseDone = {
+                    completedExercises = completedExercises + exIdx
+                    navController.popBackStack(
+                        "exercises/$phase/${java.net.URLEncoder.encode(day, "UTF-8")}",
+                        inclusive = false
+                    )
+                },
+                onBack = { navController.popBackStack() }
+            )
+        }
+
         composable("swap/{phase}/{day}/{exIdx}") { back ->
             val phase = back.arguments?.getString("phase")?.toInt() ?: 1
             val day = java.net.URLDecoder.decode(
@@ -83,16 +123,13 @@ fun WearApp() {
                     day = day,
                     exercise = exercise,
                     onSwapped = { newName ->
-                        // Update local workoutData with the swap
                         workoutData?.let { data ->
                             val updatedExercises = data.exercises.toMutableList()
                             val ex = updatedExercises[exIdx]
                             val effectiveName = if (newName.isEmpty()) ex.originalName else newName
                             val newAlternates = if (newName.isEmpty()) {
-                                // Restore: re-add the old effective name as an alternate, remove original
                                 (ex.availableAlternates + ex.name).filter { it != ex.originalName }
                             } else {
-                                // Swapped: remove newName from alternates, add old name back
                                 (ex.availableAlternates - newName + ex.name).filter { it != effectiveName }
                             }
                             updatedExercises[exIdx] = ex.copy(
