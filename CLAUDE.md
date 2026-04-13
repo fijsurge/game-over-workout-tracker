@@ -18,7 +18,19 @@ Game Over Workout Tracker — a single-file React PWA for tracking workouts base
 
 - **Run:** Open `index.html` in a browser, or serve via any HTTP server for PWA features
 - **Edit:** Modify `index.html` directly, refresh browser to see changes
-- **No tests or linting configured**
+
+## Testing
+
+**Always run the full test suite before pushing to GitHub, phone, or watch.**
+
+```
+npm run test        # all three suites (required before any push/deploy)
+npm run test:unit   # Jest unit tests only (~1s) — history dedup, stats calc
+npm run test:e2e    # Playwright E2E tests only (~25s) — browser UI flows
+npm run test:kt     # Kotlin JUnit tests only (~60s) — Wear nav route utils
+```
+
+**Core logic lives in `src/core.js`** (and mirrored to `www/src/core.js`). When editing `mergeHistory`, `deleteOneHistoryEntry`, `getExerciseStats`, or `makeLogKey`, update `src/core.js` — both HTML files load it as a script tag and call these as globals. Keep `www/src/core.js` in sync with `src/core.js` (same as the `index.html` / `www/index.html` sync requirement).
 
 ## Architecture
 
