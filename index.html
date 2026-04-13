@@ -51,6 +51,7 @@
         </div>
     </div>
 
+    <script src="./src/core.js"></script>
     <script type="text/babel">
         const initApp = () => {
             if (typeof window.Recharts === 'undefined' || typeof window.React === 'undefined') {
@@ -581,10 +582,7 @@
                                 setLogs(prev => ({...prev, [logKey]: { w: setData.weight, r: setData.reps }}));
                                 const entry = { key: logKey, w: setData.weight, r: setData.reps, date: setData.date };
                                 setHistory(prev => {
-                                    // Replace any existing entry for same set+date so buffered
-                                    // event replays and re-logs don't create duplicates
-                                    const filtered = prev.filter(e => !(e.key === entry.key && e.date === entry.date));
-                                    const newHist = [...filtered, entry];
+                                    const newHist = mergeHistory(prev, [entry]);
                                     localStorage.setItem(`${APP_ID}_history`, JSON.stringify(newHist));
                                     return newHist;
                                 });
@@ -687,9 +685,7 @@
                         date: timestamp.split('T')[0]
                     })).filter(entry => entry.w && entry.r);
 
-                    // Replace any existing entry for same key+date (dedup against watch-logged sets)
-                    const base = history.filter(h => !sessionEntries.some(e => e.key === h.key && e.date === h.date));
-                    const newHistory = [...base, ...sessionEntries];
+                    const newHistory = mergeHistory(history, sessionEntries);
                     setHistory(newHistory);
                     localStorage.setItem(`${APP_ID}_history`, JSON.stringify(newHistory));
                     localStorage.setItem(`${APP_ID}_saved`, 'true');
@@ -715,9 +711,8 @@
 
                 const deleteHistoryEntry = (key, date) => {
                     setHistory(prev => {
-                        const idx = prev.findIndex(e => e.key === key && e.date === date);
-                        if (idx === -1) return prev;
-                        const newHist = [...prev.slice(0, idx), ...prev.slice(idx + 1)];
+                        const newHist = deleteOneHistoryEntry(prev, key, date);
+                        if (newHist === prev) return prev;
                         localStorage.setItem(`${APP_ID}_history`, JSON.stringify(newHist));
                         if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.WearPlugin) {
                             window.Capacitor.Plugins.WearPlugin.syncHistory({ history: JSON.stringify(newHist) }).catch(() => {});
@@ -728,29 +723,7 @@
 
                 const allExerciseStats = useMemo(() => {
                     const exercises = programData[phase].workouts[day];
-                    const getStatsForName = (name) => {
-                        const filtered = history.filter(h => h.key.startsWith(`${phase}-`) && h.key.includes(`-${name}-`));
-                        if (filtered.length === 0) return { name, avgData: [], setData: [], sessionLog: [], sessions: 0, bestWeight: 0, firstAvgWeight: 0, lastAvgWeight: 0, trend: 0 };
-                        const byDate = {};
-                        filtered.forEach(h => {
-                            if (!byDate[h.date]) byDate[h.date] = [];
-                            byDate[h.date].push({ w: parseFloat(h.w), r: parseFloat(h.r), key: h.key });
-                        });
-                        const avgData = Object.entries(byDate).map(([date, entries]) => ({
-                            date: date.slice(5),
-                            avgWeight: Math.round((entries.reduce((s, e) => s + e.w, 0) / entries.length) * 10) / 10,
-                            peakWeight: Math.max(...entries.map(e => e.w)),
-                            avgReps: Math.round((entries.reduce((s, e) => s + e.r, 0) / entries.length) * 10) / 10
-                        })).sort((a, b) => a.date.localeCompare(b.date));
-                        const setData = filtered.map(h => ({ date: h.date.slice(5), weight: parseFloat(h.w), reps: parseFloat(h.r) })).sort((a, b) => a.date.localeCompare(b.date));
-                        const sessionLog = Object.entries(byDate).sort((a, b) => b[0].localeCompare(a[0])).map(([date, entries]) => ({ date, entries }));
-                        const bestWeight = Math.max(...filtered.map(h => parseFloat(h.w)));
-                        const sessions = Object.keys(byDate).length;
-                        const firstAvgWeight = avgData[0]?.avgWeight || 0;
-                        const lastAvgWeight = avgData[avgData.length - 1]?.avgWeight || 0;
-                        const trend = firstAvgWeight > 0 ? Math.round(((lastAvgWeight - firstAvgWeight) / firstAvgWeight) * 100) : 0;
-                        return { name, avgData, setData, sessionLog, sessions, bestWeight, firstAvgWeight, lastAvgWeight, trend };
-                    };
+                    const getStatsForName = (name) => getExerciseStats(history, phase, name);
 
                     const result = [];
                     exercises.forEach(ex => {

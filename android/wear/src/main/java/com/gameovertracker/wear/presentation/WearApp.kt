@@ -21,14 +21,12 @@ fun WearApp() {
         composable("day/{phase}") { back ->
             val phase = back.arguments?.getString("phase")?.toInt() ?: 1
             DayScreen(phase = phase, onDaySelected = { day ->
-                navController.navigate("exercises/$phase/${java.net.URLEncoder.encode(day, "UTF-8")}")
+                navController.navigate(RouteUtils.exercisesRoute(phase, day))
             })
         }
         composable("exercises/{phase}/{day}") { back ->
             val phase = back.arguments?.getString("phase")?.toInt() ?: 1
-            val day = java.net.URLDecoder.decode(
-                back.arguments?.getString("day") ?: "Monday", "UTF-8"
-            )
+            val day = RouteUtils.dec(back.arguments?.getString("day") ?: "Monday")
             ExerciseListScreen(
                 phase = phase,
                 day = day,
@@ -41,14 +39,10 @@ fun WearApp() {
                     workoutData = data
                 },
                 onExerciseSelected = { exIdx ->
-                    navController.navigate(
-                        "log_w/$phase/${java.net.URLEncoder.encode(day, "UTF-8")}/$exIdx/1"
-                    )
+                    navController.navigate(RouteUtils.weightRoute(phase, day, exIdx, 1))
                 },
                 onSwapExercise = { exIdx ->
-                    navController.navigate(
-                        "swap/$phase/${java.net.URLEncoder.encode(day, "UTF-8")}/$exIdx"
-                    )
+                    navController.navigate(RouteUtils.swapRoute(phase, day, exIdx))
                 }
             )
         }
@@ -56,9 +50,7 @@ fun WearApp() {
         // Weight entry for set N — swiping left goes back one screen naturally
         composable("log_w/{phase}/{day}/{exIdx}/{setNum}") { back ->
             val phase = back.arguments?.getString("phase")?.toInt() ?: 1
-            val day = java.net.URLDecoder.decode(
-                back.arguments?.getString("day") ?: "Monday", "UTF-8"
-            )
+            val day = RouteUtils.dec(back.arguments?.getString("day") ?: "Monday")
             val exIdx = back.arguments?.getString("exIdx")?.toInt() ?: 0
             val setNum = back.arguments?.getString("setNum")?.toInt() ?: 1
             WeightScreen(
@@ -68,9 +60,7 @@ fun WearApp() {
                 setNum = setNum,
                 workoutData = workoutData,
                 onNext = { weightStr ->
-                    navController.navigate(
-                        "log_r/$phase/${java.net.URLEncoder.encode(day, "UTF-8")}/$exIdx/$setNum/${java.net.URLEncoder.encode(weightStr, "UTF-8")}"
-                    )
+                    navController.navigate(RouteUtils.repsRoute(phase, day, exIdx, setNum, weightStr))
                 },
                 onBack = { navController.popBackStack() }
             )
@@ -79,14 +69,10 @@ fun WearApp() {
         // Reps entry for set N — swiping left goes back to weight screen for same set
         composable("log_r/{phase}/{day}/{exIdx}/{setNum}/{weight}") { back ->
             val phase = back.arguments?.getString("phase")?.toInt() ?: 1
-            val day = java.net.URLDecoder.decode(
-                back.arguments?.getString("day") ?: "Monday", "UTF-8"
-            )
+            val day = RouteUtils.dec(back.arguments?.getString("day") ?: "Monday")
             val exIdx = back.arguments?.getString("exIdx")?.toInt() ?: 0
             val setNum = back.arguments?.getString("setNum")?.toInt() ?: 1
-            val weightStr = java.net.URLDecoder.decode(
-                back.arguments?.getString("weight") ?: "0", "UTF-8"
-            )
+            val weightStr = RouteUtils.dec(back.arguments?.getString("weight") ?: "0")
             RepsScreen(
                 phase = phase,
                 day = day,
@@ -95,14 +81,12 @@ fun WearApp() {
                 weightStr = weightStr,
                 workoutData = workoutData,
                 onNextSet = {
-                    navController.navigate(
-                        "log_w/$phase/${java.net.URLEncoder.encode(day, "UTF-8")}/$exIdx/${setNum + 1}"
-                    )
+                    navController.navigate(RouteUtils.weightRoute(phase, day, exIdx, setNum + 1))
                 },
                 onExerciseDone = {
                     completedExercises = completedExercises + exIdx
                     navController.popBackStack(
-                        "exercises/$phase/${java.net.URLEncoder.encode(day, "UTF-8")}",
+                        RouteUtils.exercisesRoute(phase, day),
                         inclusive = false
                     )
                 },
@@ -112,9 +96,7 @@ fun WearApp() {
 
         composable("swap/{phase}/{day}/{exIdx}") { back ->
             val phase = back.arguments?.getString("phase")?.toInt() ?: 1
-            val day = java.net.URLDecoder.decode(
-                back.arguments?.getString("day") ?: "Monday", "UTF-8"
-            )
+            val day = RouteUtils.dec(back.arguments?.getString("day") ?: "Monday")
             val exIdx = back.arguments?.getString("exIdx")?.toInt() ?: 0
             val exercise = workoutData?.exercises?.getOrNull(exIdx)
             if (exercise != null) {
