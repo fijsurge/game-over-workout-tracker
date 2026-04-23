@@ -498,13 +498,25 @@
                 useEffect(() => {
                     const savedLogs = localStorage.getItem(`${APP_ID}_logs`);
                     const savedHistory = localStorage.getItem(`${APP_ID}_history`);
-                    const savedSwaps = localStorage.getItem(`${APP_ID}_swaps`);
+                    const savedSwapsRaw = localStorage.getItem(`${APP_ID}_swaps`);
                     const hasSaved = localStorage.getItem(`${APP_ID}_saved`);
+                    const today = new Date().toISOString().split('T')[0];
+                    const loadSwaps = () => {
+                        if (!savedSwapsRaw) return;
+                        try {
+                            const { date, swaps: saved } = JSON.parse(savedSwapsRaw);
+                            if (date === today) setSwaps(saved);
+                            else localStorage.removeItem(`${APP_ID}_swaps`);
+                        } catch (e) {
+                            // legacy format (no date) — discard
+                            localStorage.removeItem(`${APP_ID}_swaps`);
+                        }
+                    };
                     if (hasSaved) {
                         localStorage.removeItem(`${APP_ID}_saved`);
                     } else {
                         if (savedLogs) setLogs(JSON.parse(savedLogs));
-                        if (savedSwaps) setSwaps(JSON.parse(savedSwaps));
+                        loadSwaps();
                     }
                     if (savedHistory) setHistory(JSON.parse(savedHistory));
                     // Merge swaps and history from watch (SharedPreferences) to pick up watch-side changes
@@ -512,10 +524,14 @@
                         window.Capacitor.Plugins.WearPlugin.getSwaps().then(result => {
                             const watchSwaps = JSON.parse(result.swaps || '{}');
                             if (Object.keys(watchSwaps).length > 0) {
-                                const localSwaps = JSON.parse(savedSwaps || '{}');
+                                // Only merge watch swaps made today — ignore stale watch swaps
+                                const watchDate = result.swapsDate || '';
+                                if (watchDate !== today) return;
+                                let localSwaps = {};
+                                try { const p = JSON.parse(savedSwapsRaw); if (p.date === today) localSwaps = p.swaps; } catch(e) {}
                                 const merged = { ...localSwaps, ...watchSwaps };
                                 setSwaps(merged);
-                                localStorage.setItem(`${APP_ID}_swaps`, JSON.stringify(merged));
+                                localStorage.setItem(`${APP_ID}_swaps`, JSON.stringify({ date: today, swaps: merged }));
                             }
                         }).catch(() => {});
                         window.Capacitor.Plugins.WearPlugin.getHistory().then(result => {
@@ -539,10 +555,12 @@
                 }, [logs]);
 
                 useEffect(() => {
-                    localStorage.setItem(`${APP_ID}_swaps`, JSON.stringify(swaps));
+                    const today = new Date().toISOString().split('T')[0];
+                    localStorage.setItem(`${APP_ID}_swaps`, JSON.stringify({ date: today, swaps }));
                     if (window.Capacitor && window.Capacitor.Plugins.WearPlugin) {
                         window.Capacitor.Plugins.WearPlugin.syncSwaps({
                             swaps: JSON.stringify(swaps),
+                            swapsDate: today,
                             customExercises: JSON.stringify(customExercises)
                         }).catch(() => {});
                     }

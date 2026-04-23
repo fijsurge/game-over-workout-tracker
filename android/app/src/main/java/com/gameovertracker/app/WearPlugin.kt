@@ -331,7 +331,8 @@ class WearPlugin : Plugin() {
     fun getSwaps(call: PluginCall) {
         val prefs = context.getSharedPreferences("GameOverWear", Context.MODE_PRIVATE)
         val swapsJson = prefs.getString("swaps", "{}") ?: "{}"
-        call.resolve(JSObject().put("swaps", swapsJson))
+        val swapsDate = prefs.getString("swapsDate", "") ?: ""
+        call.resolve(JSObject().put("swaps", swapsJson).put("swapsDate", swapsDate))
     }
 
     @PluginMethod
@@ -345,9 +346,11 @@ class WearPlugin : Plugin() {
     fun syncSwaps(call: PluginCall) {
         val swapsJson = call.getString("swaps") ?: run { call.reject("Missing swaps"); return }
         val customExercisesJson = call.getString("customExercises") ?: run { call.reject("Missing customExercises"); return }
+        val swapsDate = call.getString("swapsDate") ?: ""
         val prefs = context.getSharedPreferences("GameOverWear", Context.MODE_PRIVATE)
         prefs.edit()
             .putString("swaps", swapsJson)
+            .putString("swapsDate", swapsDate)
             .putString("customExercises", customExercisesJson)
             .apply()
         call.resolve()
