@@ -7,6 +7,15 @@ import androidx.activity.compose.setContent
 import com.gameovertracker.wear.presentation.WearApp
 import java.time.LocalDate
 
+// Returns true when MainActivity.onResume should reset the nav stack back to the phase screen
+// (by calling recreate()). Two triggers: a new calendar day, or a pending post-save reset
+// requested by the SAVE WORKOUT button on ExerciseListScreen.
+internal fun shouldResetToPhase(
+    today: String,
+    lastDate: String?,
+    pendingPhaseReset: Boolean
+): Boolean = lastDate != today || pendingPhaseReset
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -24,8 +33,12 @@ class MainActivity : ComponentActivity() {
         val today = LocalDate.now().toString()
         val prefs = getSharedPreferences("WearAppState", MODE_PRIVATE)
         val lastDate = prefs.getString("lastDate", today)
-        if (lastDate != today) {
-            prefs.edit().putString("lastDate", today).apply()
+        val pendingPhaseReset = prefs.getBoolean("resetToPhaseOnResume", false)
+        if (shouldResetToPhase(today, lastDate, pendingPhaseReset)) {
+            prefs.edit()
+                .putString("lastDate", today)
+                .putBoolean("resetToPhaseOnResume", false)
+                .apply()
             recreate()
         }
     }

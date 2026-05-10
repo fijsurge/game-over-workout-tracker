@@ -7,7 +7,7 @@
     "test": "npm run test:unit && npm run test:e2e && npm run test:kt",
     "test:unit": "jest",
     "test:e2e": "playwright test",
-    "test:kt": "cd android && ./gradlew :wear:test"
+    "test:kt": "node -e \"require('child_process').execSync((process.platform==='win32'?'.\\\\gradlew.bat':'./gradlew')+' :wear:test :app:test',{cwd:'android',stdio:'inherit',shell:true})\""
   },
   "repository": {
     "type": "git",

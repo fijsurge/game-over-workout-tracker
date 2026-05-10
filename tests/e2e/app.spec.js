@@ -146,3 +146,81 @@ test.describe('Day selector', () => {
         expect(options).toContain('Saturday');
     });
 });
+
+test.describe('Swap panel', () => {
+    test('add custom exercise then swap an exercise to it', async ({ page }) => {
+        await page.goto(APP_URL);
+        await page.waitForSelector('h1', { timeout: 10000 });
+
+        // Default view is workout/Phase 1/Monday — first exercise: Incline Barbell Press
+        // The exercise name is a button that opens the SwapPanel
+        await page.locator('button').filter({ hasText: 'Incline Barbell Press' }).first().click();
+
+        // Swap panel opens
+        await expect(page.getByRole('heading', { name: 'Swap Exercise' })).toBeVisible();
+        await expect(page.getByText('Replace')).toBeVisible();
+
+        // No custom exercises yet
+        await expect(page.getByText('No custom exercises yet.')).toBeVisible();
+
+        // Add a custom exercise
+        await page.getByPlaceholder('New exercise name').fill('Cable Crossover');
+        await page.getByRole('button', { name: 'Add' }).click();
+
+        // The new alternate should appear in the panel
+        await expect(page.getByRole('button', { name: 'Cable Crossover' })).toBeVisible();
+        // localStorage should have it persisted
+        const persisted = await page.evaluate((id) =>
+            localStorage.getItem(`${id}_customExercises`), APP_ID);
+        expect(JSON.parse(persisted)).toContain('Cable Crossover');
+
+        // Tap the alternate to swap
+        await page.getByRole('button', { name: 'Cable Crossover' }).click();
+
+        // Panel closes; the workout card now shows Cable Crossover with a SUB badge
+        await expect(page.getByRole('heading', { name: 'Swap Exercise' })).not.toBeVisible();
+        await expect(page.locator('button').filter({ hasText: 'Cable Crossover' })).toBeVisible();
+        await expect(page.getByText('instead of Incline Barbell Press')).toBeVisible();
+
+        // Swap should be persisted in localStorage (stored as { date, swaps })
+        const swapsRaw = await page.evaluate((id) =>
+            localStorage.getItem(`${id}_swaps`), APP_ID);
+        expect(JSON.parse(swapsRaw).swaps['1-Monday-Incline Barbell Press']).toBe('Cable Crossover');
+    });
+
+    test('restore original removes the swap', async ({ page }) => {
+        // Pre-seed a swap and a custom exercise. Swaps expire end-of-day, so use today's date.
+        await page.goto(APP_URL);
+        await page.evaluate(([id]) => {
+            const today = new Date().toISOString().split('T')[0];
+            localStorage.setItem(`${id}_customExercises`, JSON.stringify(['Cable Crossover']));
+            localStorage.setItem(`${id}_swaps`, JSON.stringify({
+                date: today,
+                swaps: { '1-Monday-Incline Barbell Press': 'Cable Crossover' }
+            }));
+        }, [APP_ID]);
+        await page.reload();
+        await page.waitForSelector('h1', { timeout: 10000 });
+
+        // Workout card shows the substituted name
+        await expect(page.getByText('instead of Incline Barbell Press')).toBeVisible();
+
+        // Open the swap panel via the swapped-in exercise name
+        await page.locator('button').filter({ hasText: 'Cable Crossover' }).first().click();
+        await expect(page.getByRole('heading', { name: 'Swap Exercise' })).toBeVisible();
+
+        // Restore the original
+        await page.getByRole('button', { name: 'Restore Original' }).click();
+
+        // Workout card returns to original name; SUB indicator gone
+        await expect(page.getByText('instead of Incline Barbell Press')).not.toBeVisible();
+        await expect(page.locator('button').filter({ hasText: 'Incline Barbell Press' }).first()).toBeVisible();
+
+        // Swap removed from localStorage
+        const swapsRaw = await page.evaluate((id) =>
+            localStorage.getItem(`${id}_swaps`), APP_ID);
+        const parsed = swapsRaw ? JSON.parse(swapsRaw) : { swaps: {} };
+        const swapsMap = parsed.swaps || {};
+        expect(swapsMap['1-Monday-Incline Barbell Press']).toBeUndefined();
+    });
+});

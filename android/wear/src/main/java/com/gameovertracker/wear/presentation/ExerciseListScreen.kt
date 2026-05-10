@@ -1,5 +1,6 @@
 package com.gameovertracker.wear.presentation
 
+import android.content.Context
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,18 +30,19 @@ fun ExerciseListScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var loading by remember { mutableStateOf(workoutData == null || workoutData.phase != phase || workoutData.day != day) }
+    val hasMatchingCache = workoutData != null && workoutData.phase == phase && workoutData.day == day
+    var loading by remember { mutableStateOf(!hasMatchingCache) }
     var error by remember { mutableStateOf<String?>(null) }
     var saveConfirmed by remember { mutableStateOf(false) }
     val listState = rememberScalingLazyListState()
 
-    fun requestWorkout() {
-        loading = true
+    fun requestWorkout(silent: Boolean = false) {
+        if (!silent) loading = true
         error = null
         scope.launch {
             val payload = JSONObject().put("phase", phase).put("day", day).toString()
             val sent = sendMessageToPhone(context, PATH_REQUEST_WORKOUT, payload)
-            if (!sent) {
+            if (!sent && !silent) {
                 error = "Phone not connected"
                 loading = false
             }
@@ -63,11 +65,9 @@ fun ExerciseListScreen(
         }
         Wearable.getMessageClient(context).addListener(listener)
 
-        if (workoutData == null || workoutData.phase != phase || workoutData.day != day) {
-            requestWorkout()
-        } else {
-            loading = false
-        }
+        // Always re-request on entry so newly added custom exercises and swap suggestions stay fresh.
+        // Silent (no spinner) if we already have data for this phase/day — list refreshes underneath.
+        requestWorkout(silent = hasMatchingCache)
 
         onDispose { Wearable.getMessageClient(context).removeListener(listener) }
     }
@@ -214,6 +214,13 @@ fun ExerciseListScreen(
                                                 .toString()
                                             sendMessageToPhone(context, PATH_SAVE_WORKOUT, payload)
                                             saveConfirmed = true
+                                            // After save, the next time the app comes back to the
+                                            // foreground, MainActivity.onResume sends the user
+                                            // back to the phase screen rather than this workout.
+                                            context.getSharedPreferences("WearAppState", Context.MODE_PRIVATE)
+                                                .edit()
+                                                .putBoolean("resetToPhaseOnResume", true)
+                                                .apply()
                                         }
                                     },
                                     colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF22C55E)),
