@@ -9,6 +9,7 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -42,6 +43,8 @@ fun WeightScreen(
     exerciseIdx: Int,
     setNum: Int,
     workoutData: WorkoutData?,
+    sessionStartMs: Long?,
+    heartRateBpm: Int?,
     onNext: (weightStr: String) -> Unit,
     onBack: () -> Unit
 ) {
@@ -54,9 +57,10 @@ fun WeightScreen(
     val suggestion = exercise.suggestions.getOrNull(setNum - 1)?.toFloatOrNull()?.takeIf { it > 0f } ?: 0f
     val weightStep = 2.5f
 
-    var weight by remember { mutableStateOf(suggestion) }
+    var weight by rememberSaveable { mutableStateOf(suggestion) }
     var showKeypad by remember { mutableStateOf(false) }
     var dragAcc by remember { mutableStateOf(0f) }
+    val elapsedStr = rememberElapsedStr(sessionStartMs)
 
     if (showKeypad) {
         val cur = if (weight == weight.toLong().toFloat()) weight.toLong().toString() else "%.1f".format(weight)
@@ -79,18 +83,7 @@ fun WeightScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 10.dp, top = 24.dp, end = 10.dp, bottom = 16.dp)
-                .pointerInput(Unit) {
-                    detectVerticalDragGestures(
-                        onDragStart = { dragAcc = 0f },
-                        onVerticalDrag = { _, dragAmount ->
-                            dragAcc += dragAmount
-                            val threshold = 18f
-                            while (dragAcc <= -threshold) { weight = (weight + weightStep).coerceAtLeast(0f); dragAcc += threshold }
-                            while (dragAcc >= threshold) { weight = (weight - weightStep).coerceAtLeast(0f); dragAcc -= threshold }
-                        }
-                    )
-                },
+                .padding(start = 10.dp, top = 24.dp, end = 10.dp, bottom = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
@@ -102,6 +95,7 @@ fun WeightScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Text("Set $setNum/${exercise.sets} · WEIGHT", fontSize = 10.sp, color = Color.Gray)
+                SessionStatusBar(elapsedStr, heartRateBpm)
             }
 
             Row(
@@ -115,8 +109,22 @@ fun WeightScreen(
                     contentAlignment = Alignment.Center
                 ) { Text("−", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White) }
 
+                // Drag detector scoped to the value display only so it can't steal taps
+                // from the +/- buttons or the NEXT button at the bottom of the screen.
                 Box(
-                    modifier = Modifier.clickable { showKeypad = true }.padding(horizontal = 4.dp),
+                    modifier = Modifier
+                        .clickable { showKeypad = true }
+                        .padding(horizontal = 4.dp)
+                        .pointerInput(Unit) {
+                            detectVerticalDragGestures(
+                                onDragStart = { dragAcc = 0f },
+                                onVerticalDrag = { _, dragAmount ->
+                                    val result = DragAccumulator.apply(weight, dragAcc, dragAmount, weightStep)
+                                    weight = result.value
+                                    dragAcc = result.accumulator
+                                }
+                            )
+                        },
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -140,7 +148,7 @@ fun WeightScreen(
             }
 
             Box(
-                modifier = Modifier.fillMaxWidth().height(52.dp)
+                modifier = Modifier.width(168.dp).height(52.dp)
                     .background(Color(0xFF1E293B), RoundedCornerShape(26.dp))
                     .clickable { onNext(weightStr) },
                 contentAlignment = Alignment.Center
@@ -161,6 +169,8 @@ fun RepsScreen(
     setNum: Int,
     weightStr: String,
     workoutData: WorkoutData?,
+    sessionStartMs: Long?,
+    heartRateBpm: Int?,
     onNextSet: () -> Unit,
     onExerciseDone: () -> Unit,
     onBack: () -> Unit
@@ -180,13 +190,14 @@ fun RepsScreen(
     val (repMin, repMax) = getRepRange(exercise.name, phase)
     val isLastSet = setNum >= exercise.sets
 
-    var reps by remember { mutableStateOf(phaseData.repMin) }
+    var reps by rememberSaveable { mutableStateOf(phaseData.repMin) }
     var logging by remember { mutableStateOf(false) }
     var logged by remember { mutableStateOf(false) }
     var showKeypad by remember { mutableStateOf(false) }
     var restActive by remember { mutableStateOf(false) }
     var restTimerSeconds by remember { mutableStateOf(60) }
     var dragAcc by remember { mutableStateOf(0f) }
+    val elapsedStr = rememberElapsedStr(sessionStartMs)
 
     // Rest timer
     LaunchedEffect(restActive) {
@@ -216,6 +227,7 @@ fun RepsScreen(
                 modifier = Modifier.fillMaxSize().padding(4.dp)
             )
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                SessionStatusBar(elapsedStr, heartRateBpm)
                 Text("$restTimerSeconds", fontSize = 44.sp, fontWeight = FontWeight.Black, color = Color.White)
                 Text("sec rest", fontSize = 11.sp, color = Color.Gray)
                 Spacer(Modifier.height(4.dp))
@@ -270,18 +282,7 @@ fun RepsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 10.dp, top = 24.dp, end = 10.dp, bottom = 16.dp)
-                .pointerInput(Unit) {
-                    detectVerticalDragGestures(
-                        onDragStart = { dragAcc = 0f },
-                        onVerticalDrag = { _, dragAmount ->
-                            dragAcc += dragAmount
-                            val threshold = 18f
-                            while (dragAcc <= -threshold) { reps = (reps + 1).coerceAtLeast(0); dragAcc += threshold }
-                            while (dragAcc >= threshold) { reps = (reps - 1).coerceAtLeast(0); dragAcc -= threshold }
-                        }
-                    )
-                },
+                .padding(start = 10.dp, top = 24.dp, end = 10.dp, bottom = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
@@ -293,6 +294,7 @@ fun RepsScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Text("Set $setNum/${exercise.sets} · REPS", fontSize = 10.sp, color = Color.Gray)
+                SessionStatusBar(elapsedStr, heartRateBpm)
             }
 
             Row(
@@ -306,8 +308,22 @@ fun RepsScreen(
                     contentAlignment = Alignment.Center
                 ) { Text("−", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White) }
 
+                // Drag detector scoped to the value display only so it can't steal taps
+                // from the +/- buttons or the LOG SET button at the bottom of the screen.
                 Box(
-                    modifier = Modifier.clickable { showKeypad = true }.padding(horizontal = 4.dp),
+                    modifier = Modifier
+                        .clickable { showKeypad = true }
+                        .padding(horizontal = 4.dp)
+                        .pointerInput(Unit) {
+                            detectVerticalDragGestures(
+                                onDragStart = { dragAcc = 0f },
+                                onVerticalDrag = { _, dragAmount ->
+                                    val result = DragAccumulator.apply(reps.toFloat(), dragAcc, dragAmount, 1f)
+                                    reps = result.value.toInt()
+                                    dragAcc = result.accumulator
+                                }
+                            )
+                        },
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -327,7 +343,7 @@ fun RepsScreen(
             }
 
             Box(
-                modifier = Modifier.fillMaxWidth().height(52.dp)
+                modifier = Modifier.width(168.dp).height(52.dp)
                     .background(if (logging) Color(0xFF7F1D1D) else Color.Red, RoundedCornerShape(26.dp))
                     .clickable {
                         if (!logging) {
@@ -387,39 +403,56 @@ fun KeypadScreen(
     }
 
     Box(
-        modifier = Modifier.fillMaxSize().background(Color.Black)
-            .padding(horizontal = 10.dp, vertical = 10.dp)
+        modifier = Modifier.fillMaxSize().background(Color(0xFF0F172A))
+            .padding(horizontal = 8.dp, vertical = 8.dp)
     ) {
         Column(
             modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(if (isWeight) "Weight (lbs)" else "Reps", fontSize = 10.sp, color = Color.Gray)
-                Spacer(Modifier.height(3.dp))
-                Box(
-                    modifier = Modifier.fillMaxWidth().background(Color(0xFF1E293B), RoundedCornerShape(8.dp))
-                        .padding(horizontal = 12.dp, vertical = 5.dp),
-                    contentAlignment = Alignment.Center
-                ) {
+            // Combined display: current value + unit label in one box
+            Box(
+                modifier = Modifier.width(178.dp).height(32.dp)
+                    .background(Color(0xFF1E293B), RoundedCornerShape(10.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.Center) {
                     Text(
                         text = if (input.isEmpty()) "0" else input,
-                        fontSize = 26.sp, fontWeight = FontWeight.Black, color = Color.White
+                        fontSize = 22.sp, fontWeight = FontWeight.Black, color = Color.White
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        text = if (isWeight) "lbs" else "reps",
+                        fontSize = 10.sp, color = Color(0xFF64748B),
+                        modifier = Modifier.padding(bottom = 1.dp)
                     )
                 }
             }
 
-            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Spacer(Modifier.height(3.dp))
+
+            // Button grid — rows use weight(1f) to fill available space adaptively across watch sizes
+            Column(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
                 rows.forEach { row ->
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
                         row.forEach { key ->
                             if (key == " ") {
                                 Spacer(Modifier.weight(1f))
                             } else {
+                                val isSpecial = key == "." || key == "⌫"
                                 Box(
-                                    modifier = Modifier.weight(1f).height(32.dp)
-                                        .background(Color(0xFF334155), RoundedCornerShape(8.dp))
+                                    modifier = Modifier.weight(1f).fillMaxHeight()
+                                        .background(
+                                            if (isSpecial) Color(0xFF1A2535) else Color(0xFF1E293B),
+                                            RoundedCornerShape(8.dp)
+                                        )
                                         .clickable {
                                             when (key) {
                                                 "⌫" -> if (input.isNotEmpty()) input = input.dropLast(1)
@@ -428,16 +461,26 @@ fun KeypadScreen(
                                             }
                                         },
                                     contentAlignment = Alignment.Center
-                                ) { Text(key, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White) }
+                                ) {
+                                    Text(
+                                        text = key,
+                                        fontSize = if (isSpecial) 14.sp else 17.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSpecial) Color(0xFF64748B) else Color.White
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
 
+            Spacer(Modifier.height(3.dp))
+
+            // DONE — 120dp keeps it within the circular boundary at this vertical position
             Box(
-                modifier = Modifier.fillMaxWidth().height(36.dp)
-                    .background(Color.Red, RoundedCornerShape(18.dp))
+                modifier = Modifier.width(120.dp).height(34.dp)
+                    .background(Color.Red, RoundedCornerShape(17.dp))
                     .clickable { onConfirm(if (input.isEmpty()) "0" else input) },
                 contentAlignment = Alignment.Center
             ) { Text("DONE", fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color.White) }

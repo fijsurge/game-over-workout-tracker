@@ -1,6 +1,5 @@
 package com.gameovertracker.wear.presentation
 
-import android.content.Context
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -15,6 +14,7 @@ import androidx.wear.compose.material.*
 import com.gameovertracker.wear.data.*
 import com.google.android.gms.wearable.MessageClient
 import com.google.android.gms.wearable.Wearable
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
@@ -24,9 +24,12 @@ fun ExerciseListScreen(
     day: String,
     workoutData: WorkoutData?,
     completedExercises: Set<Int>,
+    sessionStartMs: Long?,
+    heartRateBpm: Int?,
     onWorkoutLoaded: (WorkoutData) -> Unit,
     onExerciseSelected: (Int) -> Unit,
-    onSwapExercise: (Int) -> Unit
+    onSwapExercise: (Int) -> Unit,
+    onWorkoutSaved: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -35,6 +38,7 @@ fun ExerciseListScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var saveConfirmed by remember { mutableStateOf(false) }
     val listState = rememberScalingLazyListState()
+    val elapsedStr = rememberElapsedStr(sessionStartMs)
 
     fun requestWorkout(silent: Boolean = false) {
         if (!silent) loading = true
@@ -119,6 +123,9 @@ fun ExerciseListScreen(
                         )
                     }
                     item {
+                        SessionStatusBar(elapsedStr, heartRateBpm)
+                    }
+                    item {
                         val doneCount = completedExercises.size
                         Text(
                             text = if (doneCount > 0) "$doneCount/${data.exercises.size} done · ${data.targetReps} reps"
@@ -196,13 +203,20 @@ fun ExerciseListScreen(
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     modifier = Modifier.padding(8.dp)
                                 ) {
-                                    Text("✓", fontSize = 24.sp, color = Color(0xFF22C55E))
+                                    Text("✓", fontSize = 28.sp, color = Color(0xFF22C55E))
                                     Text(
-                                        "Workout Saved!",
+                                        "Workout Complete!",
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color.White
                                     )
+                                    if (elapsedStr.isNotEmpty()) {
+                                        Spacer(Modifier.height(3.dp))
+                                        Text(elapsedStr, fontSize = 10.sp, color = Color.Gray)
+                                    }
+                                    if (heartRateBpm != null) {
+                                        Text("♥ $heartRateBpm bpm", fontSize = 10.sp, color = Color(0xFFFF4444))
+                                    }
                                 }
                             } else {
                                 Button(
@@ -214,13 +228,8 @@ fun ExerciseListScreen(
                                                 .toString()
                                             sendMessageToPhone(context, PATH_SAVE_WORKOUT, payload)
                                             saveConfirmed = true
-                                            // After save, the next time the app comes back to the
-                                            // foreground, MainActivity.onResume sends the user
-                                            // back to the phase screen rather than this workout.
-                                            context.getSharedPreferences("WearAppState", Context.MODE_PRIVATE)
-                                                .edit()
-                                                .putBoolean("resetToPhaseOnResume", true)
-                                                .apply()
+                                            delay(1500L)
+                                            onWorkoutSaved()
                                         }
                                     },
                                     colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF22C55E)),

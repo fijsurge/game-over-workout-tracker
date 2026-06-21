@@ -73,3 +73,28 @@ The app is also packaged as an Android APK via Capacitor. The `www/` directory c
 - `adb install android/app/build/outputs/apk/debug/app-debug.apk` — install on device/emulator
 
 **After editing `index.html`:** copy changes to `www/index.html` (updating CDN paths to `./lib/` local paths), then run `npx cap copy` before rebuilding.
+
+## Wear OS Watch App
+
+The watch app lives in `android/wear/`. It is a standalone Wear OS app (Kotlin + Jetpack Compose) that communicates with the phone app via the Wearable Data Layer.
+
+**Build and deploy:**
+```
+cd android && ./gradlew :wear:assembleDebug
+adb -s <watch-ip>:<port> install -r wear/build/outputs/apk/debug/wear-debug.apk
+```
+
+**Required ADB permission after every fresh install:**
+```
+adb -s <watch-ip>:<port> shell pm grant com.gameovertracker.app android.permission.BODY_SENSORS
+```
+
+On Wear OS 6 (Android 15), `BODY_SENSORS` is a standard runtime permission that can be granted via ADB, but Wear OS does not always surface it in the permission dialog when requested alongside `health.READ_HEART_RATE`. Always run the `pm grant` after installing.
+
+`health.READ_HEART_RATE` is granted through the system dialog that appears automatically on the first app launch — tap **Allow** when prompted. Both permissions persist across app updates (re-grant only needed after `pm clear` or full uninstall).
+
+**Key source files:**
+- `android/wear/src/main/java/com/gameovertracker/wear/presentation/WearApp.kt` — root composable, nav graph, session state (timer + HR), permission request
+- `android/wear/src/main/java/com/gameovertracker/wear/presentation/SessionUtils.kt` — `rememberElapsedStr()` timer, `SessionStatusBar` composable
+- `android/wear/src/main/java/com/gameovertracker/wear/presentation/SetLogScreen.kt` — WeightScreen, RepsScreen, rest timer overlay, KeypadScreen
+- `android/wear/src/main/java/com/gameovertracker/wear/presentation/ExerciseListScreen.kt` — exercise list, save workout

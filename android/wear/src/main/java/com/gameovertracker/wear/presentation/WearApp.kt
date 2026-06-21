@@ -1,6 +1,18 @@
 package com.gameovertracker.wear.presentation
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
+import androidx.health.services.client.HealthServices
+import androidx.health.services.client.MeasureCallback
+import androidx.health.services.client.data.Availability
+import androidx.health.services.client.data.DataPointContainer
+import androidx.health.services.client.data.DataType
+import androidx.health.services.client.data.DeltaDataType
+import kotlinx.coroutines.awaitCancellation
 import androidx.wear.compose.navigation.SwipeDismissableNavHost
 import androidx.wear.compose.navigation.composable
 import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
@@ -8,9 +20,57 @@ import com.gameovertracker.wear.data.WorkoutData
 
 @Composable
 fun WearApp() {
+    val context = LocalContext.current
     val navController = rememberSwipeDismissableNavController()
     var workoutData by remember { mutableStateOf<WorkoutData?>(null) }
     var completedExercises by remember { mutableStateOf(setOf<Int>()) }
+    var sessionStartMs by remember { mutableStateOf<Long?>(null) }
+    var heartRateBpm by remember { mutableStateOf<Int?>(null) }
+
+    // Wear OS 6 requires BOTH BODY_SENSORS and health.READ_HEART_RATE for sensor access.
+    fun hasHrPermissions() =
+        context.checkSelfPermission(Manifest.permission.BODY_SENSORS) == PackageManager.PERMISSION_GRANTED &&
+        context.checkSelfPermission("android.permission.health.READ_HEART_RATE") == PackageManager.PERMISSION_GRANTED
+
+    var hrPermissionsGranted by remember { mutableStateOf(hasHrPermissions()) }
+    val hrPermissionsLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { hrPermissionsGranted = hasHrPermissions() }
+
+    LaunchedEffect(Unit) {
+        if (!hrPermissionsGranted) {
+            hrPermissionsLauncher.launch(arrayOf(
+                Manifest.permission.BODY_SENSORS,
+                "android.permission.health.READ_HEART_RATE"
+            ))
+        }
+    }
+
+    // Stable callback instance — must be the same object passed to unregister.
+    val hrCallback = remember {
+        object : MeasureCallback {
+            override fun onAvailabilityChanged(dataType: DeltaDataType<*, *>, availability: Availability) {}
+            override fun onDataReceived(data: DataPointContainer) {
+                data.getData(DataType.HEART_RATE_BPM).lastOrNull()?.value?.let { bpm ->
+                    heartRateBpm = bpm.toInt()
+                }
+            }
+        }
+    }
+
+    // Register for live HR via Health Services (the correct API for Wear OS 4+).
+    // LaunchedEffect suspends at awaitCancellation so the finally block cleanly
+    // unregisters the callback when leaving composition or when permission changes.
+    LaunchedEffect(hrPermissionsGranted) {
+        if (!hrPermissionsGranted) return@LaunchedEffect
+        val measureClient = HealthServices.getClient(context).measureClient
+        try {
+            measureClient.registerMeasureCallback(DataType.HEART_RATE_BPM, hrCallback)
+            awaitCancellation()
+        } finally {
+            try { measureClient.unregisterMeasureCallbackAsync(DataType.HEART_RATE_BPM, hrCallback).get() } catch (_: Exception) {}
+        }
+    }
 
     SwipeDismissableNavHost(navController = navController, startDestination = "phase") {
         composable("phase") {
@@ -32,9 +92,12 @@ fun WearApp() {
                 day = day,
                 workoutData = workoutData,
                 completedExercises = completedExercises,
+                sessionStartMs = sessionStartMs,
+                heartRateBpm = heartRateBpm,
                 onWorkoutLoaded = { data ->
                     if (workoutData?.phase != data.phase || workoutData?.day != data.day) {
                         completedExercises = setOf()
+                        sessionStartMs = System.currentTimeMillis()
                     }
                     workoutData = data
                 },
@@ -43,6 +106,12 @@ fun WearApp() {
                 },
                 onSwapExercise = { exIdx ->
                     navController.navigate(RouteUtils.swapRoute(phase, day, exIdx))
+                },
+                onWorkoutSaved = {
+                    sessionStartMs = null
+                    workoutData = null
+                    completedExercises = setOf()
+                    navController.popBackStack("phase", inclusive = false)
                 }
             )
         }
@@ -59,6 +128,8 @@ fun WearApp() {
                 exerciseIdx = exIdx,
                 setNum = setNum,
                 workoutData = workoutData,
+                sessionStartMs = sessionStartMs,
+                heartRateBpm = heartRateBpm,
                 onNext = { weightStr ->
                     navController.navigate(RouteUtils.repsRoute(phase, day, exIdx, setNum, weightStr))
                 },
@@ -80,6 +151,8 @@ fun WearApp() {
                 setNum = setNum,
                 weightStr = weightStr,
                 workoutData = workoutData,
+                sessionStartMs = sessionStartMs,
+                heartRateBpm = heartRateBpm,
                 onNextSet = {
                     navController.navigate(RouteUtils.weightRoute(phase, day, exIdx, setNum + 1))
                 },
