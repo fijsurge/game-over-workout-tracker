@@ -68,6 +68,34 @@ function getExerciseStats(history, phase, name) {
              firstAvgWeight, lastAvgWeight, trend };
 }
 
+/**
+ * Pivot history for one exercise into per-session rows for a multi-set line chart.
+ * Returns [{date:'M/DD', s1:w, s1r:r, s2:w, s2r:r, ...}] sorted oldest→newest.
+ */
+function getSetProgressionData(history, phase, name) {
+    const filtered = history.filter(h =>
+        h.key.startsWith(`${phase}-`) && h.key.includes(`-${name}-s`)
+    );
+    const byDate = {};
+    filtered.forEach(h => {
+        const m = h.key.match(/-s(\d+)$/);
+        if (!m) return;
+        const s = parseInt(m[1]);
+        if (!byDate[h.date]) byDate[h.date] = {};
+        byDate[h.date][s] = { w: parseFloat(h.w), r: parseFloat(h.r) };
+    });
+    return Object.entries(byDate)
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([date, sets]) => {
+            const row = { date: date.slice(5) };
+            Object.entries(sets).forEach(([s, { w, r }]) => {
+                row[`s${s}`] = w;
+                row[`s${s}r`] = r;
+            });
+            return row;
+        });
+}
+
 if (typeof module !== 'undefined') {
-    module.exports = { makeLogKey, mergeHistory, deleteOneHistoryEntry, getExerciseStats };
+    module.exports = { makeLogKey, mergeHistory, deleteOneHistoryEntry, getExerciseStats, getSetProgressionData };
 }

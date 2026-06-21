@@ -1,6 +1,6 @@
 'use strict';
 
-const { getExerciseStats } = require('../../src/core');
+const { getExerciseStats, getSetProgressionData } = require('../../src/core');
 
 const makeEntry = (phase, day, name, setNum, date, w, r) => ({
     key: `${phase}-${day}-${name}-s${setNum}`,
@@ -108,5 +108,44 @@ describe('getExerciseStats', () => {
         const history = [makeEntry(1, 'Monday', 'Bench Press', 1, '2026-04-01', 100, 10)];
         const result = getExerciseStats(history, 1, 'Bench Press');
         expect(result.sessionLog[0].entries[0].key).toBe('1-Monday-Bench Press-s1');
+    });
+});
+
+describe('getSetProgressionData', () => {
+    test('returns empty array for no matching history', () => {
+        const result = getSetProgressionData([], 1, 'Bench Press');
+        expect(result).toEqual([]);
+    });
+
+    test('groups sets by session date', () => {
+        const history = [
+            makeEntry(1, 'Monday', 'Bench Press', 1, '2026-04-01', 100, 10),
+            makeEntry(1, 'Monday', 'Bench Press', 2, '2026-04-01', 110, 8),
+        ];
+        const result = getSetProgressionData(history, 1, 'Bench Press');
+        expect(result).toHaveLength(1);
+        expect(result[0].s1).toBe(100);
+        expect(result[0].s1r).toBe(10);
+        expect(result[0].s2).toBe(110);
+    });
+
+    test('sorts sessions oldest first', () => {
+        const history = [
+            makeEntry(1, 'Monday', 'Bench Press', 1, '2026-04-15', 115, 10),
+            makeEntry(1, 'Monday', 'Bench Press', 1, '2026-04-01', 100, 10),
+        ];
+        const result = getSetProgressionData(history, 1, 'Bench Press');
+        expect(result[0].date).toBe('04-01');
+        expect(result[1].date).toBe('04-15');
+    });
+
+    test('only includes entries for the correct phase', () => {
+        const history = [
+            makeEntry(1, 'Monday', 'Bench Press', 1, '2026-04-01', 100, 10),
+            makeEntry(2, 'Monday', 'Bench Press', 1, '2026-04-01', 120, 6),
+        ];
+        const result = getSetProgressionData(history, 1, 'Bench Press');
+        expect(result).toHaveLength(1);
+        expect(result[0].s1).toBe(100);
     });
 });

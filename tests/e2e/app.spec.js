@@ -12,19 +12,20 @@ const sampleHistory = [
     { key: '1-Monday-Flat Barbell Press-s1',    date: '2026-04-07', w: '155', r: '12' },
 ];
 
-// Nav buttons: "Log" (workout view) | "Stats" (stats view)
-// Stats sub-tabs: "Summary" | "Chart" | "Table" | "Log" (data log)
+// Nav button
 const navStats = () => 'button:has(span:text-is("Stats"))';
-const statsTabLog = () => 'button:text-is("Log")'; // stats tab — not the nav button
 
 async function goToStats(page) {
     await page.locator(navStats()).click();
-    await expect(page.getByText('Summary')).toBeVisible();
+    // Dashboard shows day cards — wait for Monday card
+    await expect(page.locator('button').filter({ hasText: 'Monday' }).first()).toBeVisible();
 }
 
-async function goToLogTab(page) {
-    // The stats "Log" tab button comes before the nav "Log" button in DOM order
-    await page.locator(statsTabLog()).first().click();
+// Navigate from stats dashboard → day view → exercise view
+async function goToExerciseView(page, day, exerciseName) {
+    await page.locator(navStats()).click();
+    await page.locator('button').filter({ hasText: day }).first().click();
+    await page.locator('button').filter({ hasText: exerciseName }).first().click();
 }
 
 async function loadWithHistory(page, history = sampleHistory) {
@@ -51,13 +52,13 @@ test.describe('App shell', () => {
         await expect(page.locator('button:has(span:text-is("Log"))')).toBeVisible();
     });
 
-    test('can switch to stats view', async ({ page }) => {
+    test('can switch to stats view and shows day dashboard', async ({ page }) => {
         await page.goto(APP_URL);
         await page.waitForSelector('h1', { timeout: 10000 });
         await goToStats(page);
-        await expect(page.getByText('Summary')).toBeVisible();
-        await expect(page.getByText('Chart')).toBeVisible();
-        await expect(page.getByText('Table')).toBeVisible();
+        // Dashboard shows all 5 training days
+        await expect(page.locator('button').filter({ hasText: 'Monday' }).first()).toBeVisible();
+        await expect(page.locator('button').filter({ hasText: 'Saturday' }).first()).toBeVisible();
     });
 });
 
@@ -78,60 +79,70 @@ test.describe('Phase selector', () => {
     });
 });
 
-test.describe('Stats — Log view', () => {
-    test('shows exercise cards when history exists', async ({ page }) => {
+test.describe('Stats — Exercise view', () => {
+    test('shows exercise name when navigating to exercise view', async ({ page }) => {
         await loadWithHistory(page);
-        await goToStats(page);
-        await goToLogTab(page);
-        await expect(page.getByText('Incline Barbell Press')).toBeVisible();
+        await goToExerciseView(page, 'Monday', 'Incline Barbell Press');
+        await expect(page.getByText('Incline Barbell Press').first()).toBeVisible();
     });
 
-    test('shows session count on exercise cards', async ({ page }) => {
+    test('shows session count on exercise card', async ({ page }) => {
         await loadWithHistory(page);
-        await goToStats(page);
-        await goToLogTab(page);
+        await goToExerciseView(page, 'Monday', 'Incline Barbell Press');
         await expect(page.getByText('2 sessions')).toBeVisible();
     });
 
     test('shows pencil edit button on cards with data', async ({ page }) => {
         await loadWithHistory(page);
-        await goToStats(page);
-        await goToLogTab(page);
+        await goToExerciseView(page, 'Monday', 'Incline Barbell Press');
         await expect(page.getByTitle('Edit sets').first()).toBeVisible();
     });
 
     test('pencil toggles to checkmark in edit mode', async ({ page }) => {
         await loadWithHistory(page);
-        await goToStats(page);
-        await goToLogTab(page);
+        await goToExerciseView(page, 'Monday', 'Incline Barbell Press');
         await page.getByTitle('Edit sets').first().click();
         await expect(page.getByTitle('Done editing').first()).toBeVisible();
     });
 
     test('edit mode shows delete buttons on set tiles', async ({ page }) => {
         await loadWithHistory(page);
-        await goToStats(page);
-        await goToLogTab(page);
+        await goToExerciseView(page, 'Monday', 'Incline Barbell Press');
         await page.getByTitle('Edit sets').first().click();
         await expect(page.locator('button').filter({ hasText: '✕' }).first()).toBeVisible();
     });
 
     test('exiting edit mode hides delete buttons', async ({ page }) => {
         await loadWithHistory(page);
-        await goToStats(page);
-        await goToLogTab(page);
+        await goToExerciseView(page, 'Monday', 'Incline Barbell Press');
         await page.getByTitle('Edit sets').first().click();
         await page.getByTitle('Done editing').first().click();
         await expect(page.locator('button').filter({ hasText: '✕' })).toHaveCount(0);
     });
+
+    test('shows multi-set progression chart svg when history has multiple sessions', async ({ page }) => {
+        await loadWithHistory(page);
+        await goToExerciseView(page, 'Monday', 'Incline Barbell Press');
+        // chart renders an SVG when there are >= 2 sessions
+        await expect(page.locator('svg').first()).toBeVisible();
+    });
 });
 
-test.describe('Stats — Average view', () => {
-    test('shows chart svg when history exists', async ({ page }) => {
+test.describe('Stats — Day view', () => {
+    test('shows session comparison after clicking a day card', async ({ page }) => {
         await loadWithHistory(page);
         await goToStats(page);
-        // Default is Summary (A) view — Recharts renders an svg
-        await expect(page.locator('svg').first()).toBeVisible();
+        await page.locator('button').filter({ hasText: 'Monday' }).first().click();
+        // Day view shows the exercise list with comparison data
+        await expect(page.getByText('Incline Barbell Press').first()).toBeVisible();
+    });
+
+    test('back button returns to dashboard', async ({ page }) => {
+        await loadWithHistory(page);
+        await goToStats(page);
+        await page.locator('button').filter({ hasText: 'Monday' }).first().click();
+        await page.locator('button').filter({ hasText: 'All Days' }).click();
+        await expect(page.locator('button').filter({ hasText: 'Saturday' }).first()).toBeVisible();
     });
 });
 
