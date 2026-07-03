@@ -581,7 +581,16 @@
                             localStorage.removeItem(`${APP_ID}_swaps`);
                         }
                     };
-                    if (savedLogs) setLogs(JSON.parse(savedLogs));
+                    if (savedLogs) {
+                        try {
+                            const { date: logsDate, logs: savedLogsData } = JSON.parse(savedLogs);
+                            if (logsDate === today) setLogs(savedLogsData);
+                            else localStorage.removeItem(`${APP_ID}_logs`);
+                        } catch(e) {
+                            // legacy format (no date wrapper) — discard
+                            localStorage.removeItem(`${APP_ID}_logs`);
+                        }
+                    }
                     loadSwaps();
                     if (savedHistory) setHistory(JSON.parse(savedHistory));
                     // Merge swaps and history from watch (SharedPreferences) to pick up watch-side changes
@@ -616,7 +625,8 @@
                 }, []);
 
                 useEffect(() => {
-                    localStorage.setItem(`${APP_ID}_logs`, JSON.stringify(logs));
+                    const today = new Date().toISOString().split('T')[0];
+                    localStorage.setItem(`${APP_ID}_logs`, JSON.stringify({ date: today, logs }));
                 }, [logs]);
 
                 useEffect(() => {
