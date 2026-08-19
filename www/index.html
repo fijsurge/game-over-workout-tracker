@@ -468,7 +468,7 @@
             };
 
             const StatCardD = ({ exStat, phase, darkMode, onDeleteEntry }) => {
-                const { name, sessions, sessionLog, isOriginalOfSwap, isHistoricalSub, substituteFor } = exStat;
+                const { name, sessions, sessionLog, bestWeight, bestReps, isOriginalOfSwap, isHistoricalSub, substituteFor } = exStat;
                 const [showAll, setShowAll] = React.useState(false);
                 const [editMode, setEditMode] = React.useState(false);
                 const ranges = { 1: [12, 15], 2: [6, 10], 3: [4, 6] };
@@ -498,6 +498,13 @@
                             </div>
                         </div>
                         {isOriginalOfSwap && <p className="text-[10px] text-slate-400 mb-2 ml-6">replaced by {substituteFor}</p>}
+                        {sessions > 0 && bestWeight > 0 && (
+                            <div className="flex items-center gap-1 mb-2 ml-6">
+                                <span className="text-[10px] font-black px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 rounded uppercase">
+                                    🏆 PB {bestWeight} × {bestReps}
+                                </span>
+                            </div>
+                        )}
                         {sessions > 0 ? (
                             <div className="space-y-3 mt-2">
                                 {displayed.map(({ date, entries }) => (
@@ -510,8 +517,10 @@
                                                     : entry.r > max
                                                     ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400'
                                                     : 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400';
+                                                const isPB = entry.w === bestWeight && entry.r === bestReps;
                                                 return (
-                                                    <div key={i} className="relative flex-1 text-center bg-slate-50 dark:bg-slate-800 rounded-xl p-2">
+                                                    <div key={i} className={`relative flex-1 text-center bg-slate-50 dark:bg-slate-800 rounded-xl p-2 ${isPB ? 'ring-2 ring-amber-400 dark:ring-amber-500' : ''}`}>
+                                                        {isPB && <span className="absolute -top-1.5 -left-1.5 text-xs leading-none" title="Personal best">🏆</span>}
                                                         <div className="text-[11px] font-black text-slate-700 dark:text-slate-200 leading-none mb-1">{entry.w}</div>
                                                         <div className={`text-[10px] font-black rounded-lg px-0.5 py-0.5 ${rc}`}>{entry.r}r</div>
                                                         {editMode && <button onClick={() => handleDelete(entry.key, date, `${entry.w}lb × ${entry.r}r`)} className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-black leading-none flex items-center justify-center">✕</button>}
@@ -870,6 +879,7 @@
                                 {programData[phase].workouts[day].map((ex) => {
                                     const effectiveName = getEffectiveName(phase, day, ex.name, swaps);
                                     const isSwapped = effectiveName !== ex.name;
+                                    const exStat = getExerciseStats(history, phase, effectiveName);
                                     return (
                                     <div key={ex.name} className="bg-white dark:bg-slate-900 p-5 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
                                         <div className="flex justify-between items-start mb-4">
@@ -879,6 +889,9 @@
                                                     {isSwapped && <span className="text-[9px] font-black px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900 text-amber-600 dark:text-amber-400 rounded uppercase shrink-0">SUB</span>}
                                                 </button>
                                                 {isSwapped && <p className="text-[10px] text-slate-400 mt-1 ml-6">instead of {ex.name}</p>}
+                                                {exStat.bestWeight > 0 && (
+                                                    <p className="text-[10px] font-black text-amber-500 dark:text-amber-400 mt-1 ml-6">🏆 PB {exStat.bestWeight} × {exStat.bestReps}</p>
+                                                )}
                                             </div>
                                             <span className="text-[10px] font-black px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-slate-500 dark:text-slate-400 uppercase shrink-0">{ex.sets} Sets</span>
                                         </div>
@@ -889,27 +902,35 @@
                                                 const data = logs[logKey] || { w: '', r: '' };
                                                 const suggested = getSuggestedWeight(phase, day, effectiveName, s);
                                                 const repColorClass = getRepColorClass(phase, data.r);
+                                                const prStatus = getSetPRStatus(exStat.bestWeight, exStat.bestReps, data.w, data.r);
                                                 return (
-                                                    <div key={s} className="flex gap-2 items-center">
-                                                        <div className="w-8 h-8 flex items-center justify-center bg-slate-900 dark:bg-slate-700 rounded-lg text-[10px] font-black text-white shrink-0">S{s}</div>
-                                                        <div className="flex-1 flex gap-2">
-                                                            <input
-                                                                type="number"
-                                                                inputMode="decimal"
-                                                                placeholder={suggested ? `${suggested}` : "Lbs"}
-                                                                value={data.w}
-                                                                onChange={(e) => setLogs({...logs, [logKey]: {...data, w: e.target.value}})}
-                                                                className="w-full p-3 bg-slate-50 dark:bg-slate-800 dark:text-white rounded-xl text-center font-bold outline-none focus:ring-2 focus:ring-red-500 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-400"
-                                                            />
-                                                            <input
-                                                                type="number"
-                                                                inputMode="numeric"
-                                                                placeholder="Reps"
-                                                                value={data.r}
-                                                                onChange={(e) => setLogs({...logs, [logKey]: {...data, r: e.target.value}})}
-                                                                className={`w-full p-3 rounded-xl text-center font-black outline-none focus:ring-2 focus:ring-red-500 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 ${repColorClass}`}
-                                                            />
+                                                    <div key={s} className="space-y-1">
+                                                        <div className="flex gap-2 items-center">
+                                                            <div className="w-8 h-8 flex items-center justify-center bg-slate-900 dark:bg-slate-700 rounded-lg text-[10px] font-black text-white shrink-0">S{s}</div>
+                                                            <div className="flex-1 flex gap-2">
+                                                                <input
+                                                                    type="number"
+                                                                    inputMode="decimal"
+                                                                    placeholder={suggested ? `${suggested}` : "Lbs"}
+                                                                    value={data.w}
+                                                                    onChange={(e) => setLogs({...logs, [logKey]: {...data, w: e.target.value}})}
+                                                                    className={`w-full p-3 bg-slate-50 dark:bg-slate-800 dark:text-white rounded-xl text-center font-bold outline-none focus:ring-2 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-400 ${prStatus ? 'ring-2 ring-amber-400 focus:ring-amber-400' : 'focus:ring-red-500'}`}
+                                                                />
+                                                                <input
+                                                                    type="number"
+                                                                    inputMode="numeric"
+                                                                    placeholder="Reps"
+                                                                    value={data.r}
+                                                                    onChange={(e) => setLogs({...logs, [logKey]: {...data, r: e.target.value}})}
+                                                                    className={`w-full p-3 rounded-xl text-center font-black outline-none focus:ring-2 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 ${repColorClass} ${prStatus ? 'ring-2 ring-amber-400 focus:ring-amber-400' : 'focus:ring-red-500'}`}
+                                                                />
+                                                            </div>
                                                         </div>
+                                                        {prStatus && (
+                                                            <div className="ml-10 text-[10px] font-black text-amber-500 dark:text-amber-400 flex items-center gap-1">
+                                                                🔥 {prStatus === 'weight' ? 'New weight PR!' : 'New rep PR at this weight!'}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 );
                                             })}

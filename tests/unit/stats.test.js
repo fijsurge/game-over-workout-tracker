@@ -1,6 +1,6 @@
 'use strict';
 
-const { getExerciseStats, getSetProgressionData } = require('../../src/core');
+const { getExerciseStats, getSetProgressionData, getSetPRStatus } = require('../../src/core');
 
 const makeEntry = (phase, day, name, setNum, date, w, r) => ({
     key: `${phase}-${day}-${name}-s${setNum}`,
@@ -108,6 +108,54 @@ describe('getExerciseStats', () => {
         const history = [makeEntry(1, 'Monday', 'Bench Press', 1, '2026-04-01', 100, 10)];
         const result = getExerciseStats(history, 1, 'Bench Press');
         expect(result.sessionLog[0].entries[0].key).toBe('1-Monday-Bench Press-s1');
+    });
+
+    test('calculates bestReps as the most reps done at bestWeight', () => {
+        const history = [
+            makeEntry(1, 'Monday', 'Bench Press', 1, '2026-04-01', 100, 12),
+            makeEntry(1, 'Monday', 'Bench Press', 1, '2026-04-08', 110, 6),
+            makeEntry(1, 'Monday', 'Bench Press', 2, '2026-04-08', 110, 9),
+        ];
+        const result = getExerciseStats(history, 1, 'Bench Press');
+        expect(result.bestWeight).toBe(110);
+        expect(result.bestReps).toBe(9);
+    });
+
+    test('bestReps ignores reps logged at a lower weight', () => {
+        const history = [
+            makeEntry(1, 'Monday', 'Bench Press', 1, '2026-04-01', 100, 15),
+            makeEntry(1, 'Monday', 'Bench Press', 1, '2026-04-08', 110, 6),
+        ];
+        const result = getExerciseStats(history, 1, 'Bench Press');
+        expect(result.bestReps).toBe(6);
+    });
+});
+
+describe('getSetPRStatus', () => {
+    test('returns null when there is no prior best', () => {
+        expect(getSetPRStatus(0, 0, 135, 10)).toBeNull();
+    });
+
+    test('returns "weight" for a new peak weight', () => {
+        expect(getSetPRStatus(110, 8, 115, 5)).toBe('weight');
+    });
+
+    test('returns "reps" for matching best weight with more reps', () => {
+        expect(getSetPRStatus(110, 8, 110, 9)).toBe('reps');
+    });
+
+    test('returns null for matching best weight with fewer or equal reps', () => {
+        expect(getSetPRStatus(110, 8, 110, 8)).toBeNull();
+        expect(getSetPRStatus(110, 8, 110, 6)).toBeNull();
+    });
+
+    test('returns null for a weight below best', () => {
+        expect(getSetPRStatus(110, 8, 100, 20)).toBeNull();
+    });
+
+    test('returns null for incomplete input', () => {
+        expect(getSetPRStatus(110, 8, '', 10)).toBeNull();
+        expect(getSetPRStatus(110, 8, 115, '')).toBeNull();
     });
 });
 

@@ -26,6 +26,15 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.time.LocalDate
 
+private fun fmtNum(v: Float): String =
+    if (v == v.toLong().toFloat()) "${v.toLong()}" else "%.1f".format(v)
+
+@Composable
+private fun PBLine(bestWeight: Float, bestReps: Float) {
+    if (bestWeight <= 0f) return
+    Text("🏆 PB ${fmtNum(bestWeight)} × ${fmtNum(bestReps)}", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFFD97706))
+}
+
 private fun vibrate(vibrator: Vibrator) {
     if (vibrator.hasVibrator()) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -75,6 +84,7 @@ fun WeightScreen(
 
     val weightStr = if (weight == weight.toLong().toFloat()) "${weight.toLong()}" else "%.1f".format(weight)
     val suggStr = if (suggestion == suggestion.toLong().toFloat()) suggestion.toLong().toString() else "%.1f".format(suggestion)
+    val isWeightPR = exercise.bestWeight > 0f && weight > exercise.bestWeight
 
     Scaffold(
         timeText = { TimeText() },
@@ -95,6 +105,7 @@ fun WeightScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Text("Set $setNum/${exercise.sets} · WEIGHT", fontSize = 10.sp, color = Color.Gray)
+                PBLine(exercise.bestWeight, exercise.bestReps)
                 SessionStatusBar(elapsedStr, heartRateBpm)
             }
 
@@ -129,11 +140,13 @@ fun WeightScreen(
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Row(verticalAlignment = Alignment.Bottom) {
-                            Text(weightStr, fontSize = 34.sp, fontWeight = FontWeight.Black, color = Color.White)
+                            Text(weightStr, fontSize = 34.sp, fontWeight = FontWeight.Black, color = if (isWeightPR) Color(0xFFFBBF24) else Color.White)
                             Spacer(Modifier.width(4.dp))
                             Text("lbs", fontSize = 13.sp, color = Color.Gray, modifier = Modifier.padding(bottom = 5.dp))
                         }
-                        if (suggestion > 0f)
+                        if (isWeightPR)
+                            Text("🔥 New weight PR!", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFBBF24))
+                        else if (suggestion > 0f)
                             Text("last: $suggStr lbs", fontSize = 10.sp, color = Color(0xFF94A3B8))
                         else
                             Text("tap to enter", fontSize = 9.sp, color = Color(0xFF475569))
@@ -274,6 +287,7 @@ fun RepsScreen(
         reps > repMax -> Color(0xFF3B82F6)
         else -> Color(0xFF22C55E)
     }
+    val prStatus = getSetPRStatus(exercise.bestWeight, exercise.bestReps, weightStr.toFloatOrNull() ?: 0f, reps)
 
     Scaffold(
         timeText = { TimeText() },
@@ -294,6 +308,7 @@ fun RepsScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Text("Set $setNum/${exercise.sets} · REPS", fontSize = 10.sp, color = Color.Gray)
+                PBLine(exercise.bestWeight, exercise.bestReps)
                 SessionStatusBar(elapsedStr, heartRateBpm)
             }
 
@@ -327,11 +342,16 @@ fun RepsScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("$reps", fontSize = 34.sp, fontWeight = FontWeight.Black, color = repColor)
-                        Text(
-                            if (repMin == 1 && repMax == 999) "no fixed target" else "target: $repMin–$repMax",
-                            fontSize = 10.sp, color = Color.Gray
-                        )
+                        Text("$reps", fontSize = 34.sp, fontWeight = FontWeight.Black, color = if (prStatus != null) Color(0xFFFBBF24) else repColor)
+                        if (prStatus == "weight")
+                            Text("🔥 New weight PR!", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFBBF24))
+                        else if (prStatus == "reps")
+                            Text("🔥 New rep PR!", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFBBF24))
+                        else
+                            Text(
+                                if (repMin == 1 && repMax == 999) "no fixed target" else "target: $repMin–$repMax",
+                                fontSize = 10.sp, color = Color.Gray
+                            )
                     }
                 }
 

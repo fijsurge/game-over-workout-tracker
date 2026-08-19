@@ -53,7 +53,9 @@ fun parseWorkoutData(json: String): WorkoutData? {
                 suggestions = suggestions,
                 originalName = ex.optString("originalName", ex.getString("name")),
                 isSwapped = ex.optBoolean("isSwapped", false),
-                availableAlternates = alternates
+                availableAlternates = alternates,
+                bestWeight = ex.optDouble("bestWeight", 0.0).toFloat(),
+                bestReps = ex.optDouble("bestReps", 0.0).toFloat()
             )
         }
         WorkoutData(

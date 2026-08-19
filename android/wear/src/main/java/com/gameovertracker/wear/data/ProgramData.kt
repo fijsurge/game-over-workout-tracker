@@ -17,7 +17,9 @@ data class ExerciseWithSuggestions(
     val suggestions: List<String>,
     val originalName: String = name,
     val isSwapped: Boolean = false,
-    val availableAlternates: List<String> = emptyList()
+    val availableAlternates: List<String> = emptyList(),
+    val bestWeight: Float = 0f,
+    val bestReps: Float = 0f
 )
 
 val PHASE_DATA = mapOf(

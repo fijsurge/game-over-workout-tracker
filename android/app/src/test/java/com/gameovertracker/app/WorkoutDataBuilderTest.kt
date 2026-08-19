@@ -127,15 +127,63 @@ class WorkoutDataBuilderTest {
     fun `parseHistory parses well-formed JSON into entries`() {
         val json = """
             [
-              {"key":"1-Monday-Squats-s1","w":"225","date":"2026-04-07"},
-              {"key":"1-Monday-Squats-s2","w":"230","date":"2026-04-07"}
+              {"key":"1-Monday-Squats-s1","w":"225","r":"10","date":"2026-04-07"},
+              {"key":"1-Monday-Squats-s2","w":"230","r":"8","date":"2026-04-07"}
             ]
         """.trimIndent()
         val entries = WorkoutDataBuilder.parseHistory(json)
         assertEquals(2, entries.size)
         assertEquals("1-Monday-Squats-s1", entries[0].key)
         assertEquals("225", entries[0].weight)
+        assertEquals("10", entries[0].reps)
         assertEquals("2026-04-07", entries[0].date)
+    }
+
+    @Test
+    fun `bestWeight and bestReps are zero when no history exists`() {
+        val snap = WorkoutDataBuilder.build(1, "Monday", emptyList(), emptyMap(), emptyList())!!
+        val incline = snap.exercises.first { it.name == "Incline Barbell Press" }
+        assertEquals(0f, incline.bestWeight)
+        assertEquals(0f, incline.bestReps)
+    }
+
+    @Test
+    fun `bestReps is the most reps done at the heaviest weight`() {
+        val history = listOf(
+            HistoryEntry("1-Monday-Incline Barbell Press-s1", "135", "2026-04-07", "12"),
+            HistoryEntry("1-Monday-Incline Barbell Press-s1", "145", "2026-04-14", "6"),
+            HistoryEntry("1-Monday-Incline Barbell Press-s2", "145", "2026-04-14", "9")
+        )
+        val snap = WorkoutDataBuilder.build(1, "Monday", history, emptyMap(), emptyList())!!
+        val incline = snap.exercises.first { it.name == "Incline Barbell Press" }
+        assertEquals(145f, incline.bestWeight)
+        assertEquals(9f, incline.bestReps)
+    }
+
+    @Test
+    fun `personal best spans all days and sets within the phase, unlike suggestions`() {
+        // Suggestions are day+set specific, but bestWeight/bestReps should reflect the
+        // exercise's all-time best within the phase — same semantics as the phone's getExerciseStats.
+        val history = listOf(
+            HistoryEntry("1-Wednesday-Squats-s3", "225", "2026-03-01", "5")
+        )
+        val snap = WorkoutDataBuilder.build(1, "Tuesday", history, emptyMap(), emptyList())!!
+        val squats = snap.exercises.first { it.name == "Squats" }
+        assertEquals(225f, squats.bestWeight)
+        assertEquals(5f, squats.bestReps)
+    }
+
+    @Test
+    fun `personal best follows the swapped-in exercise name, not the original`() {
+        val history = listOf(
+            HistoryEntry("1-Monday-Incline Barbell Press-s1", "135", "2026-04-07", "12"),
+            HistoryEntry("1-Monday-Cable Crossover-s1", "60", "2026-05-01", "15")
+        )
+        val swaps = mapOf("1-Monday-Incline Barbell Press" to "Cable Crossover")
+        val snap = WorkoutDataBuilder.build(1, "Monday", history, swaps, listOf("Cable Crossover"))!!
+        val swapped = snap.exercises.first { it.originalName == "Incline Barbell Press" }
+        assertEquals(60f, swapped.bestWeight)
+        assertEquals(15f, swapped.bestReps)
     }
 
     @Test

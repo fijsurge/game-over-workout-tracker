@@ -126,6 +126,59 @@ test.describe('Stats — Exercise view', () => {
         // chart renders an SVG when there are >= 2 sessions
         await expect(page.locator('svg').first()).toBeVisible();
     });
+
+    test('shows personal best badge with weight and reps at that weight', async ({ page }) => {
+        await loadWithHistory(page);
+        await goToExerciseView(page, 'Monday', 'Incline Barbell Press');
+        // bestWeight is 145 (4/14), and 12 is the most reps ever done at 145
+        await expect(page.getByText('PB 145 × 12')).toBeVisible();
+    });
+
+    test('marks the set tile that set the personal best', async ({ page }) => {
+        await loadWithHistory(page);
+        await goToExerciseView(page, 'Monday', 'Incline Barbell Press');
+        await expect(page.getByTitle('Personal best')).toBeVisible();
+    });
+});
+
+test.describe('Workout log — personal best nudge', () => {
+    // Incline Barbell Press is the first (4-set) exercise on Monday, Phase 1.
+    // History best is 145 lbs x 12 reps (see sampleHistory).
+    const getExerciseCard = (page) => page.locator('div.p-5.rounded-3xl').filter({ hasText: 'Incline Barbell Press' }).first();
+
+    test('shows the PB badge on the log screen without navigating to stats', async ({ page }) => {
+        await loadWithHistory(page);
+        const card = getExerciseCard(page);
+        await expect(card.getByText('PB 145 × 12')).toBeVisible();
+    });
+
+    test('shows a new weight PR nudge when logging above the current best', async ({ page }) => {
+        await loadWithHistory(page);
+        const card = getExerciseCard(page);
+        const inputs = card.locator('input[type="number"]');
+        await inputs.nth(0).fill('150');
+        await inputs.nth(1).fill('5');
+        await expect(card.getByText('New weight PR!')).toBeVisible();
+    });
+
+    test('shows a new rep PR nudge when matching best weight with more reps', async ({ page }) => {
+        await loadWithHistory(page);
+        const card = getExerciseCard(page);
+        const inputs = card.locator('input[type="number"]');
+        await inputs.nth(0).fill('145');
+        await inputs.nth(1).fill('13');
+        await expect(card.getByText('New rep PR at this weight!')).toBeVisible();
+    });
+
+    test('shows no PR nudge when below the current best', async ({ page }) => {
+        await loadWithHistory(page);
+        const card = getExerciseCard(page);
+        const inputs = card.locator('input[type="number"]');
+        await inputs.nth(0).fill('100');
+        await inputs.nth(1).fill('10');
+        await expect(card.getByText('New weight PR!')).toHaveCount(0);
+        await expect(card.getByText('New rep PR at this weight!')).toHaveCount(0);
+    });
 });
 
 test.describe('Stats — Day view', () => {

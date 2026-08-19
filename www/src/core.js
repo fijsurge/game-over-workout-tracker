@@ -58,14 +58,30 @@ function getExerciseStats(history, phase, name) {
         .sort((a, b) => b[0].localeCompare(a[0]))
         .map(([date, entries]) => ({ date, entries }));
     const bestWeight = Math.max(...filtered.map(h => parseFloat(h.w)));
+    const bestReps = Math.max(...filtered.filter(h => parseFloat(h.w) === bestWeight).map(h => parseFloat(h.r)));
     const sessions = Object.keys(byDate).length;
     const firstAvgWeight = avgData[0] ? avgData[0].avgWeight : 0;
     const lastAvgWeight = avgData[avgData.length - 1] ? avgData[avgData.length - 1].avgWeight : 0;
     const trend = firstAvgWeight > 0
         ? Math.round(((lastAvgWeight - firstAvgWeight) / firstAvgWeight) * 100)
         : 0;
-    return { name, avgData, setData, sessionLog, sessions, bestWeight,
+    return { name, avgData, setData, sessionLog, sessions, bestWeight, bestReps,
              firstAvgWeight, lastAvgWeight, trend };
+}
+
+/**
+ * Compare a set being logged against the current personal best (heaviest
+ * weight ever, and the most reps done at that exact weight).
+ * Returns 'weight' for a new peak weight, 'reps' for matching the best
+ * weight with more reps than ever done at it, or null otherwise.
+ */
+function getSetPRStatus(bestWeight, bestReps, weight, reps) {
+    const w = parseFloat(weight);
+    const r = parseFloat(reps);
+    if (!bestWeight || isNaN(w) || isNaN(r) || w <= 0 || r <= 0) return null;
+    if (w > bestWeight) return 'weight';
+    if (w === bestWeight && r > bestReps) return 'reps';
+    return null;
 }
 
 /**
@@ -97,5 +113,5 @@ function getSetProgressionData(history, phase, name) {
 }
 
 if (typeof module !== 'undefined') {
-    module.exports = { makeLogKey, mergeHistory, deleteOneHistoryEntry, getExerciseStats, getSetProgressionData };
+    module.exports = { makeLogKey, mergeHistory, deleteOneHistoryEntry, getExerciseStats, getSetProgressionData, getSetPRStatus };
 }

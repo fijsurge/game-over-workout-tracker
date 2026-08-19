@@ -5,7 +5,7 @@ import org.json.JSONObject
 
 data class Exercise(val name: String, val sets: Int)
 data class PhaseInfo(val title: String, val targetReps: String, val repMin: Int, val repMax: Int)
-data class HistoryEntry(val key: String, val weight: String, val date: String)
+data class HistoryEntry(val key: String, val weight: String, val date: String, val reps: String = "")
 
 data class ExerciseSnapshot(
     val name: String,
@@ -13,7 +13,9 @@ data class ExerciseSnapshot(
     val isSwapped: Boolean,
     val sets: Int,
     val suggestions: List<String>,
-    val availableAlternates: List<String>
+    val availableAlternates: List<String>,
+    val bestWeight: Float,
+    val bestReps: Float
 )
 
 data class WorkoutSnapshot(
@@ -152,13 +154,16 @@ object WorkoutDataBuilder {
             val suggestions = (1..ex.sets).map { setNum ->
                 latestWeight(history, "$phase-$day-$effectiveName-s$setNum")
             }
+            val (bestWeight, bestReps) = personalBest(history, phase, effectiveName)
             ExerciseSnapshot(
                 name = effectiveName,
                 originalName = ex.name,
                 isSwapped = isSwapped,
                 sets = ex.sets,
                 suggestions = suggestions,
-                availableAlternates = alternates
+                availableAlternates = alternates,
+                bestWeight = bestWeight,
+                bestReps = bestReps
             )
         }
 
@@ -185,13 +190,27 @@ object WorkoutDataBuilder {
         return weight
     }
 
+    // Personal best = heaviest weight ever logged for this exercise+phase (across all days/sets),
+    // paired with the most reps ever done at that exact weight. Mirrors src/core.js getExerciseStats.
+    private fun personalBest(history: List<HistoryEntry>, phase: Int, effectiveName: String): Pair<Float, Float> {
+        val prefix = "$phase-"
+        val marker = "-$effectiveName-"
+        val matches = history.filter { it.key.startsWith(prefix) && it.key.contains(marker) }
+        val bestWeight = matches.mapNotNull { it.weight.toFloatOrNull() }.maxOrNull() ?: 0f
+        val bestReps = matches
+            .filter { it.weight.toFloatOrNull() == bestWeight }
+            .mapNotNull { it.reps.toFloatOrNull() }
+            .maxOrNull() ?: 0f
+        return bestWeight to bestReps
+    }
+
     fun parseHistory(json: String): List<HistoryEntry> {
         return try {
             val arr = JSONArray(json)
             (0 until arr.length()).mapNotNull { i ->
                 try {
                     val o = arr.getJSONObject(i)
-                    HistoryEntry(o.optString("key"), o.optString("w"), o.optString("date"))
+                    HistoryEntry(o.optString("key"), o.optString("w"), o.optString("date"), o.optString("r"))
                 } catch (e: Exception) { null }
             }
         } catch (e: Exception) { emptyList() }
@@ -223,6 +242,8 @@ object WorkoutDataBuilder {
                 put("availableAlternates", JSONArray(ex.availableAlternates))
                 put("sets", ex.sets)
                 put("suggestions", suggestionsArr)
+                put("bestWeight", ex.bestWeight.toDouble())
+                put("bestReps", ex.bestReps.toDouble())
             })
         }
         return JSONObject().apply {
