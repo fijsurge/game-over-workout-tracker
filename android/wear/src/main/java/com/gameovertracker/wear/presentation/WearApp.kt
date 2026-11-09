@@ -37,8 +37,12 @@ fun WearApp() {
         ActivityResultContracts.RequestMultiplePermissions()
     ) { hrPermissionsGranted = hasHrPermissions() }
 
-    LaunchedEffect(Unit) {
-        if (!hrPermissionsGranted) {
+    // Deferred until a workout session actually starts (sessionStartMs != null) — binding to the
+    // Health Services system app is an IPC round-trip that otherwise competes with Compose's
+    // initial composition for CPU/main-thread time on every cold start, even when the user is
+    // just browsing the phase/day pickers and HR isn't shown yet.
+    LaunchedEffect(sessionStartMs) {
+        if (sessionStartMs != null && !hrPermissionsGranted) {
             hrPermissionsLauncher.launch(arrayOf(
                 Manifest.permission.BODY_SENSORS,
                 "android.permission.health.READ_HEART_RATE"
@@ -58,11 +62,11 @@ fun WearApp() {
         }
     }
 
-    // Register for live HR via Health Services (the correct API for Wear OS 4+).
-    // LaunchedEffect suspends at awaitCancellation so the finally block cleanly
-    // unregisters the callback when leaving composition or when permission changes.
-    LaunchedEffect(hrPermissionsGranted) {
-        if (!hrPermissionsGranted) return@LaunchedEffect
+    // Register for live HR via Health Services (the correct API for Wear OS 4+), but only while
+    // a session is active. LaunchedEffect suspends at awaitCancellation so the finally block
+    // cleanly unregisters the callback when the session ends or permission changes.
+    LaunchedEffect(hrPermissionsGranted, sessionStartMs) {
+        if (!hrPermissionsGranted || sessionStartMs == null) return@LaunchedEffect
         val measureClient = HealthServices.getClient(context).measureClient
         try {
             measureClient.registerMeasureCallback(DataType.HEART_RATE_BPM, hrCallback)
